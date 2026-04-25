@@ -3,7 +3,7 @@ import { solveLMS } from '../../../lib/automation';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
-  const { username, password, debugMode } = await request.json();
+  const { username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects } = await request.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -13,7 +13,7 @@ export async function POST(request) {
       };
 
       try {
-        await solveLMS(username, password, null, logger, true, debugMode);
+        await solveLMS(username, password, null, logger, autoConfirm, debugMode, headlessMode, blacklistSubjects);
         controller.enqueue(encoder.encode(JSON.stringify({ done: true }) + '\n'));
       } catch (error) {
         controller.enqueue(encoder.encode(JSON.stringify({ error: error.message }) + '\n'));
