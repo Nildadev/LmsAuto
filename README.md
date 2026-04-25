@@ -31,7 +31,7 @@
 ## 📁 Cấu trúc dự án
 
 ```
-LMSAuto/
+LMSAutoNew/
 ├── lib/
 │   └── automation.js      # Logic tự động hóa cốt lõi (Playwright)
 ├── scripts/

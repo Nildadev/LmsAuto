@@ -1,10 +1,13 @@
 const { prompt } = require('enquirer');
 const { solveLMS } = require('../lib/automation');
 
+const debugMode = process.argv.includes('--debug');
+
 async function main() {
     console.clear();
     console.log('=================================================');
     console.log('   LMS360 AUTO SOLVER Made With ❤️  By Nildadev');
+    if (debugMode) console.log('   🐛 DEBUG MODE — Bỏ qua bộ lọc, quét tất cả khóa học');
     console.log('=================================================');
 
     while (true) {
@@ -40,7 +43,7 @@ async function main() {
             return res.proceed ? 'y' : 'n';
         };
 
-        await solveLMS(response.username, response.password, interactiveConfirm);
+        await solveLMS(response.username, response.password, interactiveConfirm, console.log, false, debugMode);
         break;
 
     } catch (err) {
