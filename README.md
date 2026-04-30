@@ -96,6 +96,10 @@ Sau khi chạy, giao diện CLI sẽ xuất hiện:
 
 ? ❓ Bạn có chắc chắn muốn bắt đầu học hết 3 khóa học này không? › Yes
 ```
+```bash
+npm run dev
+```
+Sau khi chạy, local server sẽ được mở lên từ đó mở giao diện web
 
 ---
 
