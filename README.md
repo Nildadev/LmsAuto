@@ -152,7 +152,7 @@ const browser = await chromium.launch({ headless: true });
 
 ## ⚠️ Lưu ý & Giới hạn
 
-- Công cụ được xây dựng cho mục đích **cá nhân và học thuật**.
+- Công cụ được xây dựng cho mục đích **cá nhân và học thuật** và tác giả không chịu trách nhiệm cho bất kỳ hành vi sử dụng sai mục đích nào của phần mềm này.
 - Không lưu trữ thông tin đăng nhập. Mọi credential chỉ tồn tại trong phiên chạy hiện tại.
 - Hiệu quả phụ thuộc vào cấu trúc HTML của `lms360.vn`. Nếu trang web cập nhật giao diện, có thể cần điều chỉnh các CSS selector.
 - Popup **Face ID** sẽ bị tự động bỏ qua (bấm "Để sau") mỗi khi xuất hiện.
