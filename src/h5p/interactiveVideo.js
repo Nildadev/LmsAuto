@@ -235,11 +235,19 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       return { t: v ? +v.currentTime.toFixed(1) : null, dur: v ? v.duration : 0, paused: v ? v.paused : null, summary, answers, submit, hasQ: summary || answers };
     });
 
-    // Mốc đang active = mốc lớn nhất <= thời điểm hiện tại và CHƯA xử lý.
-    const active = stops.filter(s => s <= (snap.t || 0) + 1.5 && !handled.has(s)).pop();
+    // Mốc đang active = mốc NHỎ NHẤT chưa xử lý mà video đã đi qua.
+    // QUAN TRỌNG: dùng [0] (nhỏ nhất) KHÔNG phải pop() (lớn nhất) — nếu không,
+    // marker ở 0s (dialog hiện sau ~1s khi t đã >3s) sẽ bị bỏ qua vĩnh viễn.
+    const active = stops.find((s) => s <= (snap.t || 0) + 1.5 && !handled.has(s));
 
     if (snap.hasQ && active !== undefined) {
       handled.add(active);
+      // Dialog đang hiện có thể thuộc marker khác (video đã đi qua). Nếu video đã
+      // vượt xa marker này, tua LÙI về đúng marker để H5P re-render dialog đúng.
+      if ((snap.t || 0) > active + 5) {
+        await seekVideo(frame, active + 0.4);
+        await sleep(1500);
+      }
       // H5P InteractiveVideo lazy-load action.params khi video tới gần marker.
       // Đọc LẠI tại thời điểm dialog hiện để lấy đáp án ĐẦY ĐỦ cho nhóm này.
       const liveList = await extractList(await readInteractions(frame, jsonOverride));
