@@ -129,6 +129,61 @@ async function answerChoiceInPopup(frame, qc, extracted, logger) {
 }
 
 
+/**
+ * Giải SingleChoiceSet (IV lồng): mỗi slide có 1 câu + các `.h5p-sc-alternative`.
+ * Click đáp án ĐÚNG -> H5P tự chuyển slide kế (3 slide). Lặp tới hết slide.
+ * KHÔNG có nút "Kiểm tra" — click là tính điểm ngay.
+ */
+async function answerSingleChoiceSet(frame, extracted, logger) {
+  const norm = (s) => String(s || '')
+    .replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ')
+    .replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+  // Gộp tất cả đáp án đúng có thể có (SingleChoiceSet: params.choices[].answers[]).
+  const texts = [];
+  const pushT = (t) => { const n = norm(t); if (n) texts.push(n); };
+  if (extracted && extracted.correctTexts) extracted.correctTexts.forEach(pushT);
+  if (extracted && extracted.data && extracted.data.correctTexts) extracted.data.correctTexts.forEach(pushT);
+  // Hỗ trợ cấu trúc choices[] (mỗi slide 1 câu).
+  const choices = (extracted && extracted.choices) || (extracted && extracted.data && extracted.data.choices) || [];
+  choices.forEach((ch) => (ch.answers || []).forEach((a) => { if (a && a.correct) pushT(a.text); }));
+
+  let totalClicks = 0;
+  const maxSlides = Math.max(1, choices.length || 3);
+  let prevQ = '';
+  for (let slide = 0; slide < maxSlides + 2; slide++) {
+    const alts = frame.locator('.h5p-sc-alternative:visible');
+    const n = await alts.count().catch(() => 0);
+    if (!n) break;
+    // Câu hỏi slide hiện tại — nếu không đổi sau click => đã hết slide -> dừng.
+    const qText = norm(await frame.locator('.h5p-sc-current-slide .h5p-sc-question').first().innerText().catch(() => ''));
+    if (qText && qText === prevQ && slide > 0) break;
+    prevQ = qText;
+    // Chọn đáp án khớp correctTexts; fallback cái đầu (chưa đánh dấu sai).
+    const altTexts = [];
+    for (let i = 0; i < n; i++) altTexts.push(norm(await alts.nth(i).innerText().catch(() => '')));
+    let target = -1;
+    for (let i = 0; i < n; i++) { if (texts.includes(altTexts[i])) { target = i; break; } }
+    if (target < 0) { for (let i = 0; i < n; i++) { if (texts.some((w) => altTexts[i].includes(w) || w.includes(altTexts[i]))) { target = i; break; } } }
+    if (target < 0) target = 0;
+    await humanClick(frame, alts.nth(target)).catch(() => {});
+    totalClicks++;
+    await sleep(900);
+    // Nếu H5P báo sai (is-wrong) thử đáp án khác.
+    const wrong = await alts.nth(target).evaluate((el) => /h5p-sc-is-wrong/.test(el.className)).catch(() => false);
+    if (wrong) {
+      for (let i = 0; i < n; i++) {
+        if (i === target) continue;
+        await humanClick(frame, alts.nth(i)).catch(() => {});
+        await sleep(700);
+        const w2 = await alts.nth(i).evaluate((el) => /h5p-sc-is-wrong/.test(el.className)).catch(() => false);
+        if (!w2) { totalClicks++; break; }
+      }
+    }
+  }
+  logger && logger(`    single-choice-set clicked ${totalClicks}`);
+  return { solved: totalClicks > 0, clicked: totalClicks };
+}
+
 /** Đáp án đã được chọn chưa (aria-checked=true hoặc class h5p-selected). */
 async function isSelected(ans) {
   return ans.evaluate((el) =>
@@ -211,57 +266,80 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   const list = await extractList(interactions);
   logger(`IV: ${list.length} interactions`, list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' '));
 
-  // Bắt đầu phát video từ đầu với playbackRate cao để nhanh tới interaction đầu.
-  await frame.evaluate(() => {
-    const v = document.querySelector('video');
-    if (v) { try { v.currentTime = 0; v.muted = true; v.playbackRate = 6; v.play().catch(() => {}); } catch (_) {} }
-  });
-  await sleep(1500);
-
   let solvedCount = 0;
   // Gom interaction theo mốc thời gian (from). Tại 1 mốc, H5P hiện TẤT CẢ
   // interaction cùng from trong CÙNG 1 dialog (summary + nhiều MC cùng lúc).
   const stops = [...new Set(list.map(l => l.from))].sort((a, b) => a - b);
-  const handled = new Set();
   const deadline = Date.now() + 300000; // tối đa 5 phút
   logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s`);
 
-  while (Date.now() < deadline && handled.size < stops.length) {
-    const snap = await frame.evaluate(() => {
+  const snapVideo = () => frame.evaluate(() => {
+    const v = document.querySelector('video');
+    const summary = document.querySelectorAll('.h5p-summary li[data-bit], .h5p-summary li').length;
+    const answers = document.querySelectorAll('.h5p-answer').length;
+    // SingleChoiceSet dùng .h5p-sc-alternative (KHÔNG có .h5p-answer).
+    const sc = document.querySelectorAll('.h5p-sc-alternative').length;
+    return {
+      t: v ? +v.currentTime.toFixed(1) : null,
+      dur: v ? v.duration : 0,
+      paused: v ? v.paused : null,
+      hasQ: summary || answers || sc,
+    };
+  }).catch(() => ({ t: 0, dur: 0, paused: null, hasQ: 0 }));
+
+  // Chờ dialog xuất hiện trong tối đa timeoutMs. Trả snap cuối.
+  const waitDialog = async (timeoutMs) => {
+    const end = Date.now() + timeoutMs;
+    let last = null;
+    while (Date.now() < end) {
+      last = await snapVideo();
+      if (last.hasQ) return last;
+      await sleep(500);
+    }
+    return last;
+  };
+
+  // QUAN TRỌNG: KHÔNG đua theo video (playbackRate cao làm vụt qua mốc sớm 0s/3s
+  // khi H5P chưa kịp trigger). Thay vào đó ĐIỀU KHIỂN từng mốc: seek tới ngay
+  // trước mốc -> play rate 1 -> chờ dialog. Xác định & không phụ thuộc tốc độ.
+  for (let si = 0; si < stops.length && Date.now() < deadline; si++) {
+    const stop = stops[si];
+    // Seek tới ngay TRƯỚC mốc (trừ mốc 0 -> để 0) rồi phát chậm cho H5P kịp bắt.
+    const back = stop > 0.6 ? stop - 0.4 : 0;
+    await frame.evaluate((s) => {
       const v = document.querySelector('video');
-      const summary = document.querySelectorAll('.h5p-summary li[data-bit], .h5p-summary li').length;
-      const answers = document.querySelectorAll('.h5p-answer').length;
-      const submit = !!document.querySelector('.h5p-question-check-answer, .h5p-question-submit, button.h5p-question-visible');
-      return { t: v ? +v.currentTime.toFixed(1) : null, dur: v ? v.duration : 0, paused: v ? v.paused : null, summary, answers, submit, hasQ: summary || answers };
-    });
+      if (v) { try { v.currentTime = s; v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} }
+    }, back);
+    await sleep(600);
 
-    // Mốc đang active = mốc NHỎ NHẤT chưa xử lý mà video đã đi qua.
-    // QUAN TRỌNG: dùng [0] (nhỏ nhất) KHÔNG phải pop() (lớn nhất) — nếu không,
-    // marker ở 0s (dialog hiện sau ~1s khi t đã >3s) sẽ bị bỏ qua vĩnh viễn.
-    const active = stops.find((s) => s <= (snap.t || 0) + 1.5 && !handled.has(s));
+    // Nếu là mốc 0s: H5P có thể đã hiện dialog ngay khi play.
+    let snap = await waitDialog(si === 0 ? 8000 : 15000);
+    if (!snap || !snap.hasQ) {
+      // Thử seek về đúng mốc rồi phát lại (một số bản H5P cần vượt qua mốc).
+      await frame.evaluate((s) => {
+        const v = document.querySelector('video');
+        if (v) { try { v.currentTime = s; v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
+      }, Math.max(0, stop - 0.2));
+      snap = await waitDialog(8000);
+    }
+    if (!snap || !snap.hasQ) {
+      logger(`  ⚠ mốc ${stop}s không hiện dialog -> bỏ qua`);
+      continue;
+    }
 
-    if (snap.hasQ && active !== undefined) {
-      handled.add(active);
-      // Dialog đang hiện có thể thuộc marker khác (video đã đi qua). Nếu video đã
-      // vượt xa marker này, tua LÙI về đúng marker để H5P re-render dialog đúng.
-      if ((snap.t || 0) > active + 5) {
-        await seekVideo(frame, active + 0.4);
-        await sleep(1500);
-      }
-      // H5P InteractiveVideo lazy-load action.params khi video tới gần marker.
-      // Đọc LẠI tại thời điểm dialog hiện để lấy đáp án ĐẦY ĐỦ cho nhóm này.
-      const liveList = await extractList(await readInteractions(frame, jsonOverride));
-      const group = liveList.filter(l => l.from === active);
-      if (!group.length) {
-        logger(`  ⚠ mốc ${active}s chưa load kịp đáp án -> tua qua`);
-        await seekVideo(frame, active + 3);
-        await frame.evaluate((r) => { const v = document.querySelector('video'); if (v) { v.playbackRate = r; v.play().catch(() => {}); } }, 6);
-        continue;
-      }
-      logger(`  ▶ mốc ${active}s (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
-      await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.pause(); });
-      await sleep(400);
+    // H5P tự pause tại mốc; đảm bảo pause để đọc DOM.
+    await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.pause(); });
+    await sleep(400);
 
+    // Đọc LẠI đáp án tại thời điểm dialog hiện (lazy-load action.params).
+    const liveList = await extractList(await readInteractions(frame, jsonOverride));
+    const group = liveList.filter(l => l.from === stop);
+    if (!group.length) {
+      logger(`  ⚠ mốc ${stop}s chưa load kịp đáp án -> tua qua`);
+      continue;
+    }
+    logger(`  ▶ mốc ${stop}s (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
+    {
       // Giải TẤT CẢ interaction trong dialog tại mốc này.
 
       // (1) SUMMARY — nằm ở cấp dialog (.h5p-summary), KHÔNG nằm trong .h5p-question con.
@@ -277,6 +355,14 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       }
 
       // (2) CHOICE — gán đáp án THEO VỊ TRÍ cho từng MC container (tránh dùng chung).
+      // (2a) SingleChoiceSet: dạng .h5p-single-choice-set, click là chấm điểm ngay.
+      const scBox = frame.locator('.h5p-single-choice-set:visible').first();
+      if (await scBox.count().catch(() => 0)) {
+        const scEx = (group.find(g => g.kind === 'choice') || {}).extracted;
+        await answerSingleChoiceSet(frame, scEx, logger);
+        await sleep(400);
+      }
+      // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
       const choices = group.filter(g => g.kind === 'choice' || g.kind === 'blanks');
       const qcs = frame.locator('.h5p-question:visible');
       const nQc = await qcs.count().catch(() => 0);
@@ -297,7 +383,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
       const nChk = await checks.count().catch(() => 0);
       for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(200); }
-      logger(`  đã bấm ${nChk} nút kiểm tra @${active}s`);
+      logger(`  đã bấm ${nChk} nút kiểm tra @${stop}s`);
       await sleep(900);
 
       // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
@@ -313,28 +399,13 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         const bar = document.querySelector('.h5p-joubelui-score-bar-progress, .h5p-score-bar-progress');
         return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
       }).catch(() => ({}));
-      logger(`  feedback @${active}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
+      logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
       solvedCount++;
 
       // Bấm "Tiếp tục/Continue" để H5P submit câu trả lời (xAPI 'answered' chỉ
       // fire sau khi đóng dialog qua nút này, KHÔNG fire khi seek đi đột ngột).
       await pressContinue(frame, logger);
       await sleep(600);
-
-      // Seek QUA mốc này (không re-pause) rồi phát tiếp tới mốc sau.
-      const next = stops.find(s => s > active);
-      const jumpTo = next !== undefined ? next + 1 : (snap.dur ? Math.floor(snap.dur - 2) : active + 2);
-      await seekVideo(frame, jumpTo);
-      await sleep(300);
-      await frame.evaluate((r) => { const v = document.querySelector('video'); if (v) { v.playbackRate = r; v.play().catch(() => {}); } }, 6);
-    } else {
-      // Không có dialog (hoặc đã xử lý mốc): đảm bảo video chạy; gần cuối thì tua cuối.
-      if (snap.dur && snap.t && snap.t > snap.dur - 6) {
-        // Không còn mốc phía trước -> kết thúc.
-        if (!stops.some(s => s > (snap.t || 0))) break;
-      }
-      await frame.evaluate(() => { const v = document.querySelector('video'); if (v && v.paused) { try { v.play().catch(() => {}); } catch (_) {} } });
-      await sleep(1200);
     }
   }
   await finishVideo(frame);

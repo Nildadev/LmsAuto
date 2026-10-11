@@ -164,10 +164,27 @@ function extractSpeakGuess(params) {
   return { kind: 'speakguess', answers: correct };
 }
 
+// ── SingleChoiceSet (params.choices[].answers[].correct) ─────────────────
+function extractSingleChoiceSet(params) {
+  const choices = params.choices || [];
+  const out = choices.map((ch) => {
+    const answers = ch.answers || ch.alternatives || [];
+    return {
+      question: stripHtml(ch.question || ''),
+      answers: answers.map((a) => ({ text: stripHtml(a && a.text), correct: !!(a && a.correct) })),
+    };
+  });
+  const correctTexts = [];
+  out.forEach((ch) => ch.answers.forEach((a) => { if (a.correct) correctTexts.push(a.text); }));
+  // Fallback: nếu vì lý do nào đó không có correct, lấy text các đáp án.
+  if (!correctTexts.length) out.forEach((ch) => ch.answers.slice(0, 1).forEach((a) => correctTexts.push(a.text)));
+  return { kind: 'choice', choices: out, correctTexts, options: out.flatMap((ch) => ch.answers.map((a) => a.text)) };
+}
+
 // ── Router theo library ──────────────────────────────────────────────────
 const ROUTER = {
   'H5P.MultiChoice': extractChoice,
-  'H5P.SingleChoiceSet': extractChoice,
+  'H5P.SingleChoiceSet': extractSingleChoiceSet,
   'H5P.TrueFalse': extractTrueFalse,
   'H5P.Blanks': extractBlanks,
   'H5P.DragText': extractBlanks,
