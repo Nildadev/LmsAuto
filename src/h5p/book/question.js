@@ -16,6 +16,7 @@ async function solveChoice(root, container, extracted, logger) {
   let count = await answers.count().catch(() => 0);
   if (!count) { answers = container.locator('.h5p-true-false-answer'); count = await answers.count().catch(() => 0); }
   if (!count) { answers = container.locator('.h5p-alternative-container'); count = await answers.count().catch(() => 0); }
+  if (!count) { answers = container.locator('.h5p-sc-alternative'); count = await answers.count().catch(() => 0); }
   if (!count) return { solved: false, reason: 'no-answer-nodes' };
 
   // Gom node visible + text.

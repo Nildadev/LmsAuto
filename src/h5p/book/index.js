@@ -15,6 +15,7 @@
  */
 const { sleep } = require('../../core/stealth');
 const { findBookFrame, readBook } = require('./read');
+const { parseBook } = require('./schema');
 const { cpPartCount, cpGoto, openInteractiveBook, ibPageState, ibNext, ibSubmit } = require('./navigate');
 const { solveElement } = require('./question');
 const { solveVideo } = require('../interactiveVideo');
@@ -96,6 +97,20 @@ async function solvePage(frame, elements, logger) {
       filled += ivRes.solved; good += ivRes.solved;
       logger && logger(`  IV lồng: ${ivRes.solved}/${ivRes.total}`);
     } catch (e) { logger && logger(`  IV lồng lỗi: ${String(e.message).slice(0, 60)}`); }
+    return { filled, good, wrong, details };
+  }
+
+  // CoursePresentation lồng trong trang IB: delegate sang solveCoursePresentation.
+  // (Trang IB nhúng 1 CP chứa nhiều slide câu hỏi -> DOM CP là nội dung đang hiện.)
+  const cpEl = elements.find((e) => e.kind === 'cp');
+  if (cpEl && await frame.locator('.h5p-course-presentation:visible').count().catch(() => 0)) {
+    try {
+      const sub = parseBook(cpEl.params) || { kind: 'coursepresentation', pages: [] };
+      const cpRes = await solveCoursePresentation(frame.page(), frame, sub, (m) => logger && logger(`  ${m}`));
+      details.push({ kind: 'cp', solved: cpRes.solved, slides: cpRes.slides });
+      filled += cpRes.solved; good += cpRes.solved;
+      logger && logger(`  CP lồng: ${cpRes.solved}/${cpRes.slides}`);
+    } catch (e) { logger && logger(`  CP lồng lỗi: ${String(e.message).slice(0, 60)}`); }
     return { filled, good, wrong, details };
   }
 
