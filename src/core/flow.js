@@ -28,6 +28,7 @@ function deps(overrides = {}) {
   return {
     launch, sleep, scanAll, videoUrl, dismissAll, findPlayerFrame, solveBook, solveVideo,
     solveOne, pressCheck, collectH5P, extractAnswers,
+    solveSingle, newTab: null,
     detectKind, DEFAULT_BLACKLIST,
     ...overrides,
   };
