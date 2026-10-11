@@ -84,7 +84,53 @@ function probeNorm(s) {
  */
 async function solvePage(frame, elements, logger) {
   const qElements = elements.filter((e) => QUESTION_KINDS.has(e.kind));
-  const containers = await visibleQuestionContainers(frame);
+  let containers = await visibleQuestionContainers(frame);
+
+  // CoursePresentation: câu hỏi ẩn sau nút popup (vd .h5p-multichoice-button, aria-haspopup=dialog).
+  // Bấm nút -> dialog chứa .h5p-question xuất hiện -> giải bằng model tương ứng -> đóng -> nút kế.
+  // Chỉ chạy khi có model câu hỏi thật (trang IB bọc [cp] sẽ delegate ở nhánh dưới).
+  const popupEls = elements.filter((e) => QUESTION_KINDS.has(e.kind) && e.extracted);
+  const hasRealQ = popupEls.length > 0 || elements.some((e) => QUESTION_KINDS.has(e.kind));
+  let popupFilled = 0;
+  if (hasRealQ) {
+    // Chỉ nút trong CP đang HIỆN (trang IB trước đó ẩn).
+    const visCp = frame.locator('.h5p-course-presentation:visible').last();
+    const cpBtns = visCp.locator('.h5p-element-button[aria-haspopup="dialog"]');
+    const cpBtnN = await cpBtns.count().catch(() => 0);
+    if (cpBtnN > 0) {
+      logger && logger(`  CP popup: ${cpBtnN} nút câu hỏi ẩn`);
+      let ei = 0;
+      for (let b = 0; b < cpBtnN; b++) {
+        const btn = cpBtns.nth(b);
+        if (!(await btn.isVisible().catch(() => false))) continue;
+        const el = popupEls[ei] || elements.find((e) => QUESTION_KINDS.has(e.kind)) || qElements[0];
+        ei++;
+        try {
+          await btn.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
+          await btn.click({ timeout: 3000 });
+          await sleep(800);
+          const dlg = frame.locator('.h5p-popup-wrapper:visible, .h5p-dialog:visible').last();
+          const cont = (await dlg.count().catch(() => 0)) ? dlg.locator('.h5p-question').first() : frame.locator('.h5p-question:visible').last();
+          const vis = await cont.isVisible().catch(() => false);
+          if (vis && el) {
+            const r = await solveElement(frame, cont, el, logger).catch((e) => ({ err: String(e.message) }));
+            await pressCheckIn(dlg, logger).catch(() => {});
+            await sleep(700);
+            popupFilled += (r && r.clicked) || (r && r.filled) || 0;
+          }
+        } catch (e) { logger && logger(`    popup ${b} lỗi: ${String(e.message).slice(0, 50)}`); }
+        const close = frame.locator('.h5p-popup-wrapper:visible .h5p-close, .h5p-dialog:visible .h5p-close, .h5p-close:visible, button[aria-label*="Đóng"]:visible, button[aria-label*="Close"]:visible').first();
+        if (await close.isVisible().catch(() => false)) { await close.click({ timeout: 2000 }).catch(() => {}); }
+        else { await frame.page().keyboard.press('Escape').catch(() => {}); }
+        await sleep(400);
+      }
+      if (popupFilled > 0 || !hasRealQ) return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: cpBtnN }] };
+      // Có cả container thường lẫn popup -> gộp (hiếm). Trả về tổng popup + tiếp tục bên dưới.
+      containers = await visibleQuestionContainers(frame);
+      if (!containers.length) return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: cpBtnN }] };
+      // fall-through để giải container thường, cộng dồn popupFilled ở cuối.
+    }
+  }
   const details = [];
   let filled = 0, good = 0, wrong = 0;
 
