@@ -49,6 +49,38 @@ async function readFinalScore(frame) {
  * Giải các container câu hỏi của MỘT trang: zip container DOM với element JSON.
  * @returns {{filled:number, good:number, wrong:number, details:Array}}
  */
+/** Trích text thuần của 1 element (để so khớp với container DOM). */
+function elementProbeText(el) {
+  const parts = [];
+  const push = (v) => { if (typeof v === 'string' && v.trim()) parts.push(v); };
+  const walk = (o, depth) => {
+    if (o == null || depth > 4) return;
+    if (typeof o === 'string') { push(o); return; }
+    if (Array.isArray(o)) { o.slice(0, 8).forEach((x) => walk(x, depth + 1)); return; }
+    if (typeof o !== 'object') return;
+    ['question', 'text', 'taskDescription', 'introduction', 'title', 'header'].forEach((k) => {
+      const v = o[k];
+      if (typeof v === 'string') push(v);
+      else if (v && typeof v === 'object') walk(v, depth + 1);
+    });
+    if (Array.isArray(o.answers)) o.answers.slice(0, 8).forEach((a) => { if (a && a.text) push(a.text); });
+    if (typeof o.text === 'string' && o.text.includes('*')) push(o.text);
+  };
+  try { walk(el.params, 0); } catch (_) {}
+  return parts.join(' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+/** Chuẩn hoá để so khớp probe với DOM. */
+function probeNorm(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Giải các container câu hỏi của MỘT trang.
+ * KHỚP THEO NỘI DUNG: mỗi element JSON tìm container có text chứa probe
+ * (thay vì zip theo thứ tự — vì trang có thể có text/media xen giữa).
+ * @returns {{filled:number, good:number, wrong:number, details:Array}}
+ */
 async function solvePage(frame, elements, logger) {
   const qElements = elements.filter((e) => QUESTION_KINDS.has(e.kind));
   const containers = await visibleQuestionContainers(frame);
@@ -67,10 +99,37 @@ async function solvePage(frame, elements, logger) {
     return { filled, good, wrong, details };
   }
 
-  for (let k = 0; k < containers.length; k++) {
-    const container = containers[k];
+  // Đọc text của từng container để khớp nội dung (thay vì zip theo thứ tự).
+  const containerTexts = [];
+  for (let c = 0; c < containers.length; c++) {
+    const t = await containers[c].innerText().catch(() => '');
+    containerTexts.push(probeNorm(t).slice(0, 500));
+  }
+  const used = new Set();
+  const findContainer = (el) => {
+    const probe = probeNorm(elementProbeText(el));
+    if (probe) {
+      let best = -1, bestLen = 0;
+      const words = probe.split(' ').filter((w) => w.length >= 4);
+      for (let c = 0; c < containers.length; c++) {
+        if (used.has(c)) continue;
+        const ct = containerTexts[c];
+        let hits = 0;
+        for (const w of words.slice(0, 12)) if (ct.includes(w)) hits++;
+        if (hits >= Math.min(3, words.length) && hits > bestLen) { bestLen = hits; best = c; }
+      }
+      if (best >= 0) { used.add(best); return { c: best, via: 'content' }; }
+    }
+    for (let c = 0; c < containers.length; c++) {
+      if (!used.has(c)) { used.add(c); return { c, via: 'order' }; }
+    }
+    return null;
+  };
+  for (let k = 0; k < qElements.length; k++) {
     const el = qElements[k];
-    if (!el) { details.push({ k, kind: 'dom-extra' }); continue; }
+    const slot = findContainer(el);
+    if (!slot) { details.push({ k, kind: el.kind, base: el.base, note: 'no-container' }); continue; }
+    const container = containers[slot.c];
     const r = await solveElement(frame, container, el, logger).catch((e) => ({ solved: false, err: e.message }));
     if (r && r.solved) filled++;
     // Bấm "Kiểm tra" NGAY TRONG container này (mỗi câu có nút riêng).
@@ -78,8 +137,11 @@ async function solvePage(frame, elements, logger) {
     await sleep(900);
     const fb = await readFeedback(container);
     good += fb.correct; wrong += fb.wrong;
-    details.push({ k, kind: el.kind, base: el.base, solved: !!(r && r.solved), ...fb });
+    details.push({ k, kind: el.kind, base: el.base, via: slot.via, solved: !!(r && r.solved), ...fb });
     await sleep(200);
+  }
+  for (let c = 0; c < containers.length; c++) {
+    if (!used.has(c)) details.push({ k: 'extra', kind: 'dom-extra', note: containerTexts[c].slice(0, 60) });
   }
   return { filled, good, wrong, details };
 }
@@ -150,5 +212,6 @@ module.exports = {
   solveBook,
   findBookFrame, readBook,
   solveCoursePresentation, solveInteractiveBook, solvePage,
-  readFinalScore, visibleQuestionContainers, log,
+  readFinalScore, visibleQuestionContainers,
+  elementProbeText, probeNorm, log,
 };

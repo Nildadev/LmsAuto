@@ -14,14 +14,15 @@ async function checkAsync(name, fn) {
 }
 
 /** Frame giả tối thiểu cho solveItem (không chạm Playwright). */
-const fakePage = { goto: async () => {}, mouse: { click: async () => {} } };
+const fakeTab = { goto: async () => {}, mouse: { click: async () => {} }, close: async () => {}, context: () => ({ newPage: async () => fakeTab }) };
+const fakePage = fakeTab;
 const fakeFrame = {
   locator: () => ({ first: () => ({ boundingBox: async () => null }) }),
 };
 
 /** Deps giả: ghi lại các lời gọi để kiểm tra thứ tự/đối số. */
 function fakeDeps(over = {}) {
-  const calls = { launch: 0, scan: 0, solveBook: 0, solveVideo: 0 };
+  const calls = { launch: 0, scan: 0, solveBook: 0, solveVideo: 0, solveSingle: 0, solveOne: 0 };
   const base = {
     launch: async (o) => { calls.launch++; calls.launchOpts = o; return { browser: { close: async () => {} }, context: { close: async () => {} }, page: fakePage, token: o.token || 'TOK' }; },
     sleep: async () => {},
@@ -32,6 +33,11 @@ function fakeDeps(over = {}) {
     detectKind: async () => ({ kind: over.kind || 'book', library: 'H5P.CoursePresentation 1.25' }),
     solveBook: async () => { calls.solveBook++; return { solved: 2, slides: 2, finalScore: { bar: '100%' } }; },
     solveVideo: async () => { calls.solveVideo++; return { solved: 1, finalScore: { bar: '100%' } }; },
+    solveSingle: async () => { calls.solveSingle++; return { solved: 1, kind: 'single' }; },
+    solveOne: async () => { calls.solveOne++; return { solved: true }; },
+    pressCheck: async () => true,
+    extractAnswers: () => ({ kind: 'blanks', answers: ['a'] }),
+    newTab: async () => fakeTab,
     DEFAULT_BLACKLIST: /NEVER/i,
   };
   return { d: { ...base, ...over.deps }, calls };
@@ -124,6 +130,23 @@ function fakeDeps(over = {}) {
     d.solveBook = async () => ({ solved: 0, finalScore: { bar: '50%' } });
     const r = await solveItem(fakePage, { contentId: 'c1' }, () => {}, {}, d);
     assert.strictEqual(r.ok, false);
+  });
+
+  await checkAsync('solveItem: kind=single -> gọi solveSingle (không gọi solveBook)', async () => {
+    const { d, calls } = fakeDeps({ kind: 'single' });
+    const r = await solveItem(fakePage, { contentId: 'c1' }, () => {}, {}, d);
+    assert.strictEqual(calls.solveSingle, 1);
+    assert.strictEqual(calls.solveBook, 0);
+    assert.strictEqual(r.kind, 'single');
+    assert.strictEqual(r.ok, true);
+  });
+
+  await checkAsync('solveItem: đóng tab sau khi giải xong', async () => {
+    let closed = 0;
+    const { d } = fakeDeps({ kind: 'book' });
+    d.newTab = async () => ({ ...fakeTab, close: async () => { closed++; } });
+    await solveItem(fakePage, { contentId: 'c1' }, () => {}, {}, d);
+    assert.strictEqual(closed, 1);
   });
 
   await checkAsync('deps(): override thắng giá trị mặc định', async () => {

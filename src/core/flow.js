@@ -15,9 +15,11 @@
 const { launch, sleep } = require('./stealth');
 const { scanAll, videoUrl, DEFAULT_BLACKLIST } = require('./scan');
 const { dismissAll } = require('./dismiss');
-const { findPlayerFrame } = require('../h5p/answers');
+const { findPlayerFrame, collectH5P } = require('../h5p/answers');
+const { extractAnswers } = require('../h5p/extract');
 const { solveBook } = require('../h5p/book');
 const { solveVideo } = require('../h5p/interactiveVideo');
+const { solveOne, pressCheck } = require('../h5p/solver');
 
 const DEFAULT_WAIT_MS = 7000;
 
@@ -25,6 +27,7 @@ const DEFAULT_WAIT_MS = 7000;
 function deps(overrides = {}) {
   return {
     launch, sleep, scanAll, videoUrl, dismissAll, findPlayerFrame, solveBook, solveVideo,
+    solveOne, pressCheck, collectH5P, extractAnswers,
     detectKind, DEFAULT_BLACKLIST,
     ...overrides,
   };
@@ -47,43 +50,86 @@ async function detectKind(frame) {
   });
 }
 
-/** Mở 1 bài: goto URL, chờ render, đóng modal. Trả frame player. */
+/** Mở 1 bài trong tab MỚI (page mới trong cùng context, KHÔNG điều hướng page chính).
+ * Trả { tab, frame } — caller PHẢI đóng tab sau khi xong.
+ * Tab riêng tránh H5PIntegration.contents cache nhầm + không mất tab scan. */
 async function openItem(page, url, logger, opts = {}, d = deps()) {
   logger(`🌐 ${url}`);
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  // Mở tab mới trong cùng context (kế thừa token localStorage/cookie).
+  // Cho phép inject d.newTab(page) trong test offline.
+  const tab = d.newTab ? await d.newTab(page)
+    : await page.context().newPage();
+  await tab.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
   await d.sleep(opts.waitMs || DEFAULT_WAIT_MS);
-  await d.dismissAll(page).catch(() => {});
+  await d.dismissAll(tab).catch(() => {});
   await d.sleep(600);
-  return d.findPlayerFrame(page, opts.frameTimeoutMs || 15000);
+  const frame = await d.findPlayerFrame(tab, opts.frameTimeoutMs || 15000);
+  return { tab, frame };
 }
+
+/**
+ * Giải 1 H5P lẻ (single): DragText/Blanks/Choice lẻ — KHÔNG phải Book/IV.
+ * Đọc jsonContent của content chính, extract đáp án rồi solveOne + Check.
+ */
+async function solveSingle(page, frame, library, logger, d = deps()) {
+  // Đọc jsonContent của content single đầu tiên tìm được trong frame.
+  const raw = await frame.evaluate(() => {
+    const c = (window.H5PIntegration && window.H5PIntegration.contents) || {};
+    for (const k in c) {
+      const lib = c[k].library || '';
+      if (/CoursePresentation|InteractiveBook|BranchingScenario|InteractiveVideo/.test(lib)) continue;
+      let j = c[k].jsonContent;
+      if (typeof j === 'string') { try { j = JSON.parse(j); } catch (_) {} }
+      return { library: lib, json: j };
+    }
+    return null;
+  }).catch(() => null);
+  if (!raw || !raw.json) { logger('  Single: không đọc được jsonContent'); return { solved: 0, kind: 'single' }; }
+  const lib = library || raw.library;
+  const data = d.extractAnswers(lib, { params: (raw.json.params || raw.json) });
+  logger(`  Single ${lib} => ${data ? data.kind : 'unknown'}`);
+  // solveOne chấp nhận { kind, data } cấp cao nhất.
+  const r = await d.solveOne(frame, { kind: data && data.kind, data, library: lib }, logger);
+  if (r && r.solved) {
+    await d.pressCheck(frame, logger).catch(() => {});
+    await d.sleep(1200);
+  }
+  return { ...r, kind: 'single', library: lib };
+}
+
+/**
+ * Giải 1 bài theo URL (mở tab mới, giải, đóng tab). Trả { ok, kind, result }.
+ */
 
 /**
  * Giải 1 bài theo URL. Trả { ok, kind, result }.
  */
 async function solveItem(page, item, logger = console.log, opts = {}, d = deps()) {
   const url = typeof item === 'string' ? item : d.videoUrl(item);
-  const frame = await openItem(page, url, logger, opts, d);
-  if (!frame) { logger('  ⚠️ Không tìm thấy frame player'); return { ok: false, kind: 'unknown', url }; }
+  const { tab, frame } = await openItem(page, url, logger, opts, d);
+  const closeTab = async () => { try { await tab.close(); } catch (_) {} };
+  if (!frame) { logger('  ⚠️ Không tìm thấy frame player'); await closeTab(); return { ok: false, kind: 'unknown', url }; }
 
   const { kind, library } = await d.detectKind(frame);
   logger(`  🔎 Loại: ${kind} (${library || '?'})`);
 
   let result;
   if (kind === 'book') {
-    result = await d.solveBook(page, frame, logger);
+    result = await d.solveBook(tab, frame, logger);
   } else if (kind === 'iv') {
     // InteractiveVideo đứng riêng: cần bấm play splash trước.
     const splash = await frame.locator('.h5p-splash-play,.h5p-splash-main').first().boundingBox().catch(() => null);
-    if (splash) await page.mouse.click(splash.x + 20, splash.y + 20).catch(() => {});
+    if (splash) await tab.mouse.click(splash.x + 20, splash.y + 20).catch(() => {});
     await d.sleep(1200);
-    result = await d.solveVideo(page, frame, logger);
+    result = await d.solveVideo(tab, frame, logger);
   } else if (kind === 'single') {
-    result = await d.solveBook(page, frame, logger); // solveBook tự fallback nếu không phải book
+    result = await d.solveSingle(tab, frame, library, logger, d);
   } else {
     logger('  ⚠️ Không nhận diện được loại H5P');
     result = { solved: 0, slides: 0, kind };
   }
   const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%')));
+  await closeTab();
   return { ok, kind, library, url, result };
 }
 
@@ -159,5 +205,5 @@ async function runFlow(opts = {}) {
   }
 }
 
-module.exports = { runFlow, solveItem, openItem, detectKind, deps };
+module.exports = { runFlow, solveItem, solveSingle, openItem, detectKind, deps };
 
