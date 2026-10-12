@@ -35,6 +35,10 @@ function makeFetch(scene) {
       const cs = (u.match(/h5p_course_id=([^&]+)/) || [])[1];
       return json({ data: { h5p_content_views: (scene.views[cs] || []) } });
     }
+    if (method === 'GET' && /\/h5p\/contents\?/.test(u) && /type=1/.test(u)) {
+      const cs = (u.match(/course_id=([^&]+)/) || [])[1];
+      return json({ data: { h5p_contents: (scene.docs && scene.docs[cs]) || [] } });
+    }
     if (method === 'POST' && /contents\/detail$/.test(u)) {
       const id = JSON.parse(opts.body).h5p_content_id;
       return json({ data: { h5p_content: scene.details[id] || null } });
@@ -99,6 +103,42 @@ function makeFetch(scene) {
     assert.strictEqual(f.cs, 'CS1');
     assert.strictEqual(h.isFile, false);
     assert.strictEqual(r.doneParts, 1);
+  });
+
+  await check('scanIncomplete: khóa CHỈ có tài liệu (learn_status rỗng) -> thêm doc isFile', async () => {
+    const scene = {
+      courses: [[{ id: 'CSDOC', title: 'K tài liệu', total_doc: 1, total_h5p_content: 0 }]],
+      views: { CSDOC: [] }, // chưa từng mở -> rỗng (bug cũ bỏ sót)
+      docs: { CSDOC: [{ id: 'DOC1', type: 1, title: 'Bảng.docx' }] },
+    };
+    const { fetchImpl } = makeFetch(scene);
+    const r = await scanIncomplete('T', { fetchImpl });
+    const d = r.parts.find((x) => x.p === 'DOC1');
+    assert.ok(d, 'phải có phần tài liệu dù learn_status rỗng');
+    assert.strictEqual(d.isFile, true);
+    assert.strictEqual(d.cs, 'CSDOC');
+    assert.strictEqual(d.title, 'Bảng.docx');
+  });
+
+  await check('scanIncomplete: khóa video+tài liệu -> thêm doc CHƯA xem (dedup learn_status)', async () => {
+    const scene = {
+      courses: [[{ id: 'CS2', title: 'K video+doc', total_doc: 2, total_h5p_content: 1 }]],
+      views: { CS2: [
+        { h5p_content_id: 'pVideo', status: 3 },                    // video đã xong
+        { h5p_content_id: 'docSeen', status: 0, total_view: 1 },    // tài liệu đã bấm mắt
+      ] },
+      details: { docSeen: { type: 1, title: 'đã xem.pdf' } },
+      docs: { CS2: [
+        { id: 'docSeen', type: 1, title: 'đã xem.pdf' },
+        { id: 'docNew', type: 1, title: 'chưa xem.pptx' },
+      ] },
+    };
+    const { fetchImpl } = makeFetch(scene);
+    const r = await scanIncomplete('T', { fetchImpl });
+    const ids = r.parts.map((x) => x.p);
+    assert.ok(ids.includes('docNew'), 'phải thêm tài liệu chưa xem');
+    assert.strictEqual(ids.filter((x) => x === 'docSeen').length, 1, 'không thêm trùng tài liệu đã có trong learn_status');
+    assert.strictEqual(r.parts.find((x) => x.p === 'docNew').isFile, true);
   });
 
   await check('completeFiles: dryRun chỉ liệt kê, KHÔNG mark', async () => {

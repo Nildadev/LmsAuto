@@ -7,7 +7,7 @@
  * Chạy: node tests/doc.test.js
  */
 const assert = require('assert');
-const { viewH5pContent, markComplete, solveDoc } = require('../src/h5p/doc');
+const { viewH5pContent, markComplete, listCourseDocs, solveDoc } = require('../src/h5p/doc');
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -61,6 +61,38 @@ function fakeFetch(responder) {
     assert.strictEqual(r.status, 0);
   });
 
+  await check('listCourseDocs: GET contents?type=1&course_id, parse h5p_contents', async () => {
+    const calls = [];
+    global.fetch = async (url, opts = {}) => {
+      calls.push({ url, method: opts.method || 'GET', headers: opts.headers });
+      return { ok: true, status: 200, text: async () => JSON.stringify({ data: { h5p_contents: [{ id: 'DOC1', type: 1, title: 'a.pptx' }] } }) };
+    };
+    const docs = await listCourseDocs('TOK', 'CS1', { apiBase: 'http://x/gd/v3' });
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].method, 'GET');
+    assert.ok(/\/h5p\/contents\?/.test(calls[0].url), 'dung endpoint contents');
+    assert.ok(/course_id=CS1/.test(calls[0].url), 'co course_id');
+    assert.ok(/type=1/.test(calls[0].url), 'chi lay tai lieu type=1');
+    assert.strictEqual(calls[0].headers.authorization, 'TOK');
+    assert.strictEqual(docs.length, 1);
+    assert.strictEqual(docs[0].id, 'DOC1');
+  });
+
+  await check('listCourseDocs: khong co courseId -> [] va KHONG goi mang', async () => {
+    let n = 0;
+    global.fetch = async () => { n++; return { ok: true, status: 200, text: async () => '{}' }; };
+    const docs = await listCourseDocs('TOK', '', { apiBase: 'http://x' });
+    assert.deepStrictEqual(docs, []);
+    assert.strictEqual(n, 0);
+  });
+
+  await check('listCourseDocs: fetch loi/JSON hong -> [] (khong throw)', async () => {
+    global.fetch = async () => ({ ok: false, status: 500, text: async () => 'boom' });
+    assert.deepStrictEqual(await listCourseDocs('TOK', 'CS1', { apiBase: 'http://x' }), []);
+    global.fetch = async () => ({ ok: true, status: 200, text: async () => '<html>not json' });
+    assert.deepStrictEqual(await listCourseDocs('TOK', 'CS1', { apiBase: 'http://x' }), []);
+  });
+
   await check('solveDoc: thieu id -> fail mem, KHONG goi mang', async () => {
     const f = fakeFetch(() => f.ok());
     const r = await solveDoc({}, 'TOK', () => {}, { apiBase: 'http://x' });
@@ -89,11 +121,34 @@ function fakeFetch(responder) {
     assert.strictEqual(f.calls[0].body.status, 3);
   });
 
-  await check('solveDoc: markComplete fail -> solved=false', async () => {
+  await check('solveDoc: markComplete 500 nhung view OK -> solved=true (view la "da xem")', async () => {
     fakeFetch((n) => (n === 1 ? { ok: true, status: 200, text: async () => '{}' } : { ok: false, status: 500, text: async () => 'err' }));
-    const r = await solveDoc({ p: 'P1', c: '', cs: 'CS1' }, 'TOK', () => {}, { apiBase: 'http://x' });
-    assert.strictEqual(r.solved, false);
+    const r = await solveDoc({ p: 'P1', c: '', cs: 'CS1' }, 'TOK', () => {}, { apiBase: 'http://x', dwellMs: 0, sleep: async () => {} });
+    assert.strictEqual(r.solved, true);
+    assert.strictEqual(r.viewed, true);
+    assert.strictEqual(r.marked, false);
     assert.strictEqual(r.status, 500);
+  });
+
+  await check('solveDoc: markComplete 400 -> thu lai 1 lan', async () => {
+    let n = 0;
+    global.fetch = async (url, opts = {}) => {
+      n++;
+      // n1=view(200), n2=mark(400), n3=mark-retry(200)
+      if (n === 2) return { ok: false, status: 400, text: async () => '{"errors":[{"code":"invalid_parameter_exception"}]}' };
+      return { ok: true, status: 200, text: async () => '{"data":{"status":"success"}}' };
+    };
+    const r = await solveDoc({ p: 'P1', c: '', cs: 'CS1' }, 'TOK', () => {}, { apiBase: 'http://x', dwellMs: 0, sleep: async () => {} });
+    assert.strictEqual(n, 3, 'phải gọi lại markComplete sau 400');
+    assert.strictEqual(r.marked, true);
+    assert.strictEqual(r.solved, true);
+  });
+
+  await check('solveDoc: view lan mark deu fail -> solved=false', async () => {
+    fakeFetch(() => ({ ok: false, status: 500, text: async () => 'err' }));
+    const r = await solveDoc({ p: 'P1', c: '', cs: 'CS1' }, 'TOK', () => {}, { apiBase: 'http://x', dwellMs: 0, sleep: async () => {} });
+    assert.strictEqual(r.solved, false);
+    assert.strictEqual(r.viewed, false);
   });
 
   console.log(`\n${failed === 0 ? '✅' : '❌'} doc: ${passed} passed, ${failed} failed`);

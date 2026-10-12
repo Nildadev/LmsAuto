@@ -16,7 +16,7 @@
  * Không cần mở browser — chỉ gọi REST API (nhanh, không tốn băng thông).
  */
 const { API_BASE, authHeaders } = require('./scan');
-const { viewH5pContent, markComplete } = require('../h5p/doc');
+const { viewH5pContent, markComplete, listCourseDocs } = require('../h5p/doc');
 
 /** GET JSON, throw nếu HTTP lỗi. */
 async function getJson(fetchImpl, url, token, timeoutMs = 20000) {
@@ -109,9 +109,10 @@ async function scanIncomplete(token, opts = {}) {
   let doneParts = 0;
   for (const c of courses) {
     const views = await fetchLearnStatus(token, c.id, opts);
-    if (!views.length) continue;
     doneParts += views.filter((v) => v.status === 3).length;
+    const seen = new Set();
     for (const v of views) {
+      seen.add(v.h5p_content_id);
       if (v.status === 3) continue;
       const detail = opts.detailImpl
         ? await opts.detailImpl(token, v.h5p_content_id, opts)
@@ -121,6 +122,22 @@ async function scanIncomplete(token, opts = {}) {
         title: (detail && detail.title) || '', isFile: classify(detail, v.title),
         denied: !!(detail && detail.__denied), deniedMsg: (detail && detail.__error) || '',
       });
+    }
+    // TÀI LIỆU (type=1): không phải H5P. Với khóa CHỈ có tài liệu, learn_status
+    // trả RỖNG (chưa từng mở) nên vòng lặp trên bỏ sót hoàn toàn. Lấy danh sách
+    // tài liệu của khóa và thêm những cái CHƯA xem (total_view==0) vào parts.
+    if (c.total_doc > 0) {
+      const docs = await listCourseDocs(token, c.id, opts);
+      for (const doc of docs) {
+        const id = doc.id || doc.h5p_content_id;
+        if (!id || seen.has(id)) continue;
+        const v = views.find((x) => x.h5p_content_id === id);
+        if (v && v.total_view > 0) continue; // đã mở (bấm nút mắt) -> coi như xong
+        parts.push({
+          cs: c.id, courseTitle: c.title, p: id, status: v ? v.status : 0,
+          title: doc.title || '', isFile: true,
+        });
+      }
     }
   }
   logger(`📚 Khóa: ${courses.length} | chưa xong: ${parts.length} phần | đã xong sẵn: ${doneParts}`);

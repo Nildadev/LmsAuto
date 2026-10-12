@@ -67,6 +67,30 @@ async function markComplete(token, h5pContentId, h5pCourseId, logger, opts = {})
 }
 
 /**
+ * Liệt kê TÀI LIỆU (type=1) của 1 khóa. Đây là danh sách hiển thị ở panel
+ * "TÀI LIỆU ĐÍNH KÈM" trên trang /xem-video và ở trang /danh-sach-tai-lieu-hs.
+ *   GET /h5p/contents?...&course_id=<CS>&mode=2&part_id=-1&...&type=1
+ * Mỗi phần tử: { id (=h5p_content_id), type:1, title, uri, content_id:"" }.
+ * @returns {Promise<Array>} mảng tài liệu (rỗng nếu lỗi/không có).
+ */
+async function listCourseDocs(token, courseId, opts = {}) {
+  if (!courseId) return [];
+  const apiBase = opts.apiBase || 'https://lms360.vn/api/gd/v3';
+  const url = `${apiBase}/h5p/contents?page_id=1&per_page=-1&class_id=0&subject_id=0&chapter_id=0`
+    + `&lesson_id=0&course_id=${encodeURIComponent(courseId)}&title=&mode=2&part_id=-1&user_id=0&type=1`;
+  const fetchImpl = opts.fetchImpl || globalThis.fetch;
+  try {
+    const res = await fetchImpl(url, {
+      headers: { authorization: token },
+      signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+    });
+    const text = await res.text().catch(() => '');
+    let body; try { body = JSON.parse(text); } catch (_) { return []; }
+    return (body && body.data && body.data.h5p_contents) || [];
+  } catch (_) { return []; }
+}
+
+/**
  * Xử lý 1 bài dạng file tài liệu: gọi view (tăng lượt xem) rồi mark hoàn thành.
  * @param {object}   item  bài đã normalize từ scan.js (.p=h5pContentId, .c=contentId, .cs=courseId)
  * @param {string}   token JWT
@@ -76,15 +100,25 @@ async function solveDoc(item, token, logger, opts = {}) {
   const p = item.p || (item.raw && item.raw.h5pContentId);
   const c = item.c || (item.raw && item.raw.contentId) || '';
   const cs = item.cs || (item.raw && item.raw.h5pCourseId) || '';
+  const sleepFn = opts.sleep || sleep;
   if (!p) return { solved: false, reason: 'doc-missing-id', kind: 'doc' };
 
-  // 1) Tăng lượt xem (giống bấm nút mắt). Không bắt buộc để hoàn thành nhưng tự nhiên hơn.
-  if (opts.view !== false) await viewH5pContent(token, p, c, logger, opts);
-  // 2) Đánh dấu hoàn thành (đây mới là endpoint quyết định).
-  const r = await markComplete(token, p, cs, logger, opts);
+  // 1) "Bấm nút mắt" — tăng lượt xem. Với tài liệu, ĐÂY là hành động được tính
+  //    "đã xem" (giống hệt nút Xem tài liệu trên web).
+  const v = opts.view !== false
+    ? await viewH5pContent(token, p, c, logger, opts)
+    : { ok: true, status: 0 };
+  // 2) Đánh dấu hoàn thành qua learn_status (best-effort): một số tài liệu API trả
+  //    400 (invalid_parameter/rate-limit) dù đã "xem" — không vì thế mà báo lỗi.
+  let r = await markComplete(token, p, cs, logger, opts);
+  if (!r.ok && r.status === 400 && v && v.ok) {
+    await sleepFn(900 + Math.floor(Math.random() * 600)); // backoff nhẹ rồi thử lại 1 lần
+    r = await markComplete(token, p, cs, logger, opts);
+  }
 
-  await sleep(opts.dwellMs || 600); // nghỉ nhỏ cho tự nhiên
-  return { solved: r.ok, status: r.status, kind: 'doc', p, c, cs };
+  await sleepFn(opts.dwellMs || 600); // nghỉ nhỏ cho tự nhiên
+  const solved = !!(r.ok || (v && v.ok)); // view OK cũng coi như xong (tài liệu)
+  return { solved, viewed: !!(v && v.ok), marked: !!r.ok, status: r.status, kind: 'doc', p, c, cs };
 }
 
-module.exports = { viewH5pContent, markComplete, solveDoc };
+module.exports = { viewH5pContent, markComplete, listCourseDocs, solveDoc };

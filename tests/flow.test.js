@@ -208,6 +208,21 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.items[0].title, 'Trắc nghiệm');
   });
 
+  await checkAsync('runFlow: quét lớp -> tài liệu (kể cả khóa chỉ có tài liệu) được thêm & solveDoc', async () => {
+    const { d, calls } = fakeDeps({
+      todo: [{ title: 'Video', subject: 'Tin', contentId: 'c1', p: 'PVID', cs: 'CS1' }],
+      parts: [
+        { cs: 'CS1', courseTitle: 'K1', p: 'PDOC', status: 0, title: 'Tài liệu.pptx', isFile: true },        // khóa video + tài liệu
+        { cs: 'CSDOC', courseTitle: 'K tài liệu', p: 'PDOCONLY', status: 0, title: 'Chỉ tài liệu.docx', isFile: true }, // khóa chỉ có tài liệu
+      ],
+    });
+    const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });
+    assert.strictEqual(calls.scanIncomplete, 1, 'phải quét khóa của lớp');
+    assert.strictEqual(rep.total, 3, 'video + 2 tài liệu');
+    assert.strictEqual(calls.solveDoc, 2, 'cả 2 tài liệu gọi solveDoc (bấm xem)');
+    assert.strictEqual(calls.solveBook, 1, 'video giải qua browser');
+  });
+
   await checkAsync('deps(): override thắng giá trị mặc định', async () => {
     const merged = deps({ solveBook: async () => 'X' });
     assert.strictEqual(await merged.solveBook(), 'X');
