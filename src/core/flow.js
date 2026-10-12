@@ -179,23 +179,48 @@ async function runFlow(opts = {}) {
     fetchImpl: opts.fetchImpl,
   });
 
-  // ── Preview: stream ảnh chụp màn hình thời gian thực (trình duyệt vẫn chạy ẩn
-  // trên host). Dùng cho WebUI: thay vì mở cửa sổ thật, web nhận ảnh xem trước.
-  // KHÔNG ảnh hưởng CLI (capturePreview=false). Ảnh chụp tab đang giải
-  // (d.currentTab) hoặc trang chính nếu chưa vào bài.
+  // ── Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (ổn định — chỉ
+  // gửi frame khi trang vẽ lại, tự ack). Browser vẫn chạy ẩn trên host; WebUI chỉ
+  // nhận ảnh. KHÔNG ảnh hưởng CLI (capturePreview=false). Tự đổi nguồn khi chuyển
+  // tab (d.currentTab: tab đang giải) hoặc về trang chính.
   let previewTimer = null;
-  let capturing = false;
+  let previewStop = async () => {};
   if (opts.capturePreview && typeof opts.onScreenshot === 'function') {
-    const target = () => d.currentTab || page;
-    previewTimer = setInterval(async () => {
-      if (capturing) return;
-      capturing = true;
+    let client = null, boundPage = null, lastSent = 0;
+    const MIN_MS = 33; // cap ~30fps để ổn định
+    const stop = async () => {
+      if (client) {
+        try { await client.send('Page.stopScreencast'); } catch (_) {}
+        try { await client.detach(); } catch (_) {}
+        client = null;
+      }
+      boundPage = null;
+    };
+    const bind = async (pg) => {
+      await stop();
+      if (!pg) return;
       try {
-        const buf = await target().screenshot({ type: 'jpeg', quality: 55 });
-        opts.onScreenshot('data:image/jpeg;base64,' + buf.toString('base64'));
-      } catch (_) { /* tab đóng / trang chưa sẵn sàng */ }
-      capturing = false;
-    }, 500);
+        client = await context.newCDPSession(pg);
+        client.on('Page.screencastFrame', async (f) => {
+          const now = Date.now();
+          if (now - lastSent >= MIN_MS) {
+            lastSent = now;
+            try { opts.onScreenshot('data:image/jpeg;base64,' + f.data); } catch (_) {}
+          }
+          try { await client.send('Page.screencastFrameAck', { sessionId: f.sessionId }); } catch (_) {}
+        });
+        await client.send('Page.startScreencast', {
+          format: 'jpeg', quality: 50, maxWidth: 1100, maxHeight: 700, everyNthFrame: 1,
+        });
+        boundPage = pg;
+      } catch (_) { client = null; boundPage = null; }
+    };
+    previewStop = stop;
+    await bind(d.currentTab || page);
+    previewTimer = setInterval(() => {
+      const target = d.currentTab || page;
+      if (target !== boundPage) bind(target); // chuyển tab -> rebind
+    }, 700);
   }
 
   try {
@@ -211,11 +236,35 @@ async function runFlow(opts = {}) {
       logger(`🧩 Parts mode: ${todo.length} phần H5P chưa hoàn thành (bỏ qua file — dùng --complete-files)`);
       if (opts.blacklist === undefined && todo.length) logger('   ℹ️ parts mode: không áp blacklist mặc định');
     } else {
+      const blacklist = opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST;
       const r = await d.scanAll(token, {
-        logger, blacklist: opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST,
+        logger, blacklist,
         skipEssay: opts.skipEssay, statuses: opts.statuses, fetchImpl: opts.fetchImpl,
       });
       todo = r.todo; summary = r.summary; report.studentName = r.studentName;
+
+      // Bổ sung: quét TOÀN BỘ khóa học của lớp (learn_status) để không bỏ sót bài
+      // không nằm trong "việc cần làm". Chỉ thêm phần H5P (file dùng --complete-files).
+      if (opts.scanClass !== false) {
+        try {
+          const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
+          const have = new Set(todo.map((t) => t.p));
+          let added = 0;
+          for (const x of parts) {
+            if (x.isFile || have.has(x.p)) continue;
+            if (blacklist && blacklist.test(`${x.courseTitle || ''} ${x.title || ''}`)) continue;
+            todo.push({
+              title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
+              p: x.p, c: '', cs: x.cs, status: x.status,
+            });
+            have.add(x.p);
+            added++;
+          }
+          if (added) logger(`➕ Bổ sung ${added} bài từ khóa học của lớp (ngoài việc cần làm)`);
+        } catch (e) {
+          logger(`⚠️ Không quét được khóa học của lớp: ${String(e && e.message).slice(0, 120)}`);
+        }
+      }
     }
     report.summary = summary;
     const list = opts.limit ? todo.slice(0, opts.limit) : todo;
@@ -261,6 +310,7 @@ async function runFlow(opts = {}) {
     return report;
   } finally {
     if (previewTimer) clearInterval(previewTimer);
+    await previewStop().catch(() => {});
     if (context && context.close) await context.close().catch(() => {});
     if (browser && browser.close) await browser.close().catch(() => {});
   }

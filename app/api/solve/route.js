@@ -3,7 +3,7 @@ import { runFlow } from '../../../src/core/flow';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
-  const { username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects } = await request.json();
+  const { username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects, scanClass } = await request.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -27,12 +27,15 @@ export async function POST(request) {
           password,
           headless: headlessMode,
           blacklist,
+          scanClass: scanClass !== false, // mặc định quét cả khóa học của lớp
           logger,
           // debugMode/autoConfirm không áp dụng: runFlow không prompt và scan qua API.
-          // Preview: stream ảnh chụp màn hình thời gian thực (browser vẫn headless trên host).
+          // Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (browser headless trên host).
           capturePreview: true,
           onScreenshot: (dataUrl) => {
             try {
+              // Backpressure: client đọc chậm -> bỏ frame để không phình bộ đệm.
+              if (controller.desiredSize !== null && controller.desiredSize < 0) return;
               controller.enqueue(encoder.encode(JSON.stringify({ screenshot: dataUrl }) + '\n'));
             } catch (_) { /* stream đã đóng */ }
           },
