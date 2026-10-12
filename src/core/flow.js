@@ -34,6 +34,7 @@ function deps(overrides = {}) {
     solveSingle, newTab: null,
     solveDoc, detectKind, DEFAULT_BLACKLIST,
     markComplete, scanIncomplete,
+    currentTab: null, // tab đang giải (dùng cho preview), do openItem/solveItem đặt
     ...overrides,
   };
 }
@@ -68,6 +69,7 @@ async function openItem(page, url, logger, opts = {}, d = deps()) {
   // Cho phép inject d.newTab(page) trong test offline.
   const tab = d.newTab ? await d.newTab(page)
     : await page.context().newPage();
+  d.currentTab = tab; // đánh dấu tab đang giải để WebUI chụp ảnh xem trước
   await tab.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
   await d.sleep(opts.waitMs || DEFAULT_WAIT_MS);
   await d.dismissAll(tab).catch(() => {});
@@ -143,6 +145,7 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
   }
   const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%')));
   await closeTab();
+  d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính
   // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
   return { ok, kind: (result && result.kind) || kind, library, url, result };
 }
@@ -175,6 +178,25 @@ async function runFlow(opts = {}) {
     logger,
     fetchImpl: opts.fetchImpl,
   });
+
+  // ── Preview: stream ảnh chụp màn hình thời gian thực (trình duyệt vẫn chạy ẩn
+  // trên host). Dùng cho WebUI: thay vì mở cửa sổ thật, web nhận ảnh xem trước.
+  // KHÔNG ảnh hưởng CLI (capturePreview=false). Ảnh chụp tab đang giải
+  // (d.currentTab) hoặc trang chính nếu chưa vào bài.
+  let previewTimer = null;
+  let capturing = false;
+  if (opts.capturePreview && typeof opts.onScreenshot === 'function') {
+    const target = () => d.currentTab || page;
+    previewTimer = setInterval(async () => {
+      if (capturing) return;
+      capturing = true;
+      try {
+        const buf = await target().screenshot({ type: 'jpeg', quality: 55 });
+        opts.onScreenshot('data:image/jpeg;base64,' + buf.toString('base64'));
+      } catch (_) { /* tab đóng / trang chưa sẵn sàng */ }
+      capturing = false;
+    }, 500);
+  }
 
   try {
     // ── PARTS MODE (--complete-h5p): dùng learn_status toàn khóa thay my_assigned_pending ──
@@ -238,6 +260,7 @@ async function runFlow(opts = {}) {
     logger(`\n📊 Kết quả: ${report.solved}/${report.total} bài xác nhận xong, ${report.failed} lỗi.`);
     return report;
   } finally {
+    if (previewTimer) clearInterval(previewTimer);
     if (context && context.close) await context.close().catch(() => {});
     if (browser && browser.close) await browser.close().catch(() => {});
   }

@@ -53,12 +53,14 @@ async function resolveToken(opts = {}) {
  * @returns {Promise<{browser, context, page, token}>}
  */
 async function launch(opts = {}) {
-  // Playwright được cài trong project; require động để tránh lỗi nếu chưa cài.
+  // Playwright được cài trong project (dependency). Nếu thiếu -> báo lỗi rõ ràng.
   let chromium;
   try {
     ({ chromium } = require('playwright'));
   } catch (_) {
-    ({ chromium } = require('/tmp/lmsdump/node_modules/playwright')); // fallback dev
+    throw new Error(
+      "Không tìm thấy Playwright. Chạy 'npm install' và 'npx playwright install chromium' trước."
+    );
   }
   fs.mkdirSync(PROFILE_DIR, { recursive: true });
 

@@ -1,4 +1,4 @@
-import { solveLMS } from '../../../lib/automation';
+import { runFlow } from '../../../src/core/flow';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,10 +13,34 @@ export async function POST(request) {
       };
 
       try {
-        await solveLMS(username, password, null, logger, autoConfirm, debugMode, headlessMode, blacklistSubjects);
+        // Dùng chung engine mới (src/core/flow.js) với CLI — thay vì lib/automation.js
+        // cũ đã lỗi thời. Map params từ web sang runFlow:
+        //   headlessMode -> headless (true=ẩn, false=hiện browser)
+        //   blacklistSubjects (mảng) -> RegExp tuỳ chỉnh; rỗng -> undefined (dùng mặc định)
+        const subjects = Array.isArray(blacklistSubjects) ? blacklistSubjects : [];
+        const blacklist = subjects.length
+          ? new RegExp(subjects.map((s) => String(s).trim()).filter(Boolean).join('|'), 'i')
+          : undefined;
+
+        await runFlow({
+          username,
+          password,
+          headless: headlessMode,
+          blacklist,
+          logger,
+          // debugMode/autoConfirm không áp dụng: runFlow không prompt và scan qua API.
+          // Preview: stream ảnh chụp màn hình thời gian thực (browser vẫn headless trên host).
+          capturePreview: true,
+          onScreenshot: (dataUrl) => {
+            try {
+              controller.enqueue(encoder.encode(JSON.stringify({ screenshot: dataUrl }) + '\n'));
+            } catch (_) { /* stream đã đóng */ }
+          },
+        });
+
         controller.enqueue(encoder.encode(JSON.stringify({ done: true }) + '\n'));
       } catch (error) {
-        controller.enqueue(encoder.encode(JSON.stringify({ error: error.message }) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({ error: error && error.message ? error.message : String(error) }) + '\n'));
       } finally {
         controller.close();
       }
