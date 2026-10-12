@@ -76,6 +76,23 @@ npm run auto
 
 Sau khi chạy, giao diện CLI sẽ xuất hiện:
 
+### 📄 Chế độ hoàn thành FILE tài liệu (pptx/pdf/doc/mp4...)
+
+Bài "TÀI LIỆU ĐÍNH KÈM" dạng file **không phải H5P** — trên web chỉ cần bấm nút
+mắt (xem) là hoàn thành. Chế độ này quét `learn_status` của **toàn bộ khóa của lớp**,
+phân loại phần file (`type=1` qua `/h5p/contents/detail`) rồi đánh dấu hoàn thành
+qua đúng 2 API mà web gọi khi bấm nút mắt (xem `src/h5p/doc.js`):
+
+```bash
+# Xem trước danh sách (không đánh dấu gì)
+node scripts/cli.js --complete-files --dry-run
+
+# Đánh dấu hoàn thành toàn bộ file (chỉ gọi API, KHÔNG mở browser)
+node scripts/cli.js --complete-files
+```
+
+Phần H5P được bỏ qua (`skippedH5p`) để solver H5P xử lý riêng.
+
 ```
 =================================================
    LMS360 AUTO SOLVER Made With ❤️ By Nildadev

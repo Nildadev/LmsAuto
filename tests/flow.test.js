@@ -22,7 +22,7 @@ const fakeFrame = {
 
 /** Deps giả: ghi lại các lời gọi để kiểm tra thứ tự/đối số. */
 function fakeDeps(over = {}) {
-  const calls = { launch: 0, scan: 0, solveBook: 0, solveVideo: 0, solveSingle: 0, solveOne: 0 };
+  const calls = { launch: 0, scan: 0, solveBook: 0, solveVideo: 0, solveSingle: 0, solveOne: 0, solveDoc: 0 };
   const base = {
     launch: async (o) => { calls.launch++; calls.launchOpts = o; return { browser: { close: async () => {} }, context: { close: async () => {} }, page: fakePage, token: o.token || 'TOK' }; },
     sleep: async () => {},
@@ -30,10 +30,13 @@ function fakeDeps(over = {}) {
     videoUrl: (it) => `https://x/${it.contentId}`,
     dismissAll: async () => {},
     findPlayerFrame: async () => fakeFrame,
-    detectKind: async () => ({ kind: over.kind || 'book', library: 'H5P.CoursePresentation 1.25' }),
+    detectKind: async () => (over.kind === 'doc'
+      ? { kind: 'unknown', library: '', isDoc: true }
+      : { kind: over.kind || 'book', library: 'H5P.CoursePresentation 1.25' }),
     solveBook: async () => { calls.solveBook++; return { solved: 2, slides: 2, finalScore: { bar: '100%' } }; },
     solveVideo: async () => { calls.solveVideo++; return { solved: 1, finalScore: { bar: '100%' } }; },
     solveSingle: async () => { calls.solveSingle++; return { solved: 1, kind: 'single' }; },
+    solveDoc: async (item, token, logger) => { calls.solveDoc++; calls.docArgs = { item, token }; return { solved: true, kind: 'doc', status: 200 }; },
     solveOne: async () => { calls.solveOne++; return { solved: true }; },
     pressCheck: async () => true,
     extractAnswers: () => ({ kind: 'blanks', answers: ['a'] }),
@@ -147,6 +150,25 @@ function fakeDeps(over = {}) {
     d.newTab = async () => ({ ...fakeTab, close: async () => { closed++; } });
     await solveItem(fakePage, { contentId: 'c1' }, () => {}, {}, d);
     assert.strictEqual(closed, 1);
+  });
+
+  await checkAsync('solveItem: kind=doc (tài liệu) -> gọi solveDoc, truyền token', async () => {
+    const { d, calls } = fakeDeps({ kind: 'doc' });
+    const r = await solveItem(fakePage, { contentId: 'c1', p: 'P1', c: 'C1', cs: 'CS1' }, () => {}, { token: 'TOK123' }, d);
+    assert.strictEqual(calls.solveDoc, 1);
+    assert.strictEqual(calls.solveBook, 0, 'doc không được gọi solveBook');
+    assert.strictEqual(r.kind, 'doc');
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(calls.docArgs.token, 'TOK123', 'phải truyền token để gọi learn_status');
+    assert.strictEqual(calls.docArgs.item.cs, 'CS1', 'phải truyền courseId để mark hoàn thành');
+  });
+
+  await checkAsync('runFlow: bài doc được solveDoc + đếm solved', async () => {
+    const { d, calls } = fakeDeps({ kind: 'doc', todo: [{ title: 'Slide', contentId: 'c1', p: 'P1', c: 'C1' }] });
+    const rep = await runFlow({ token: 'TOK999', logger: () => {}, deps: d });
+    assert.strictEqual(calls.solveDoc, 1);
+    assert.strictEqual(rep.solved, 1);
+    assert.strictEqual(rep.items[0].kind, 'doc');
   });
 
   await checkAsync('deps(): override thắng giá trị mặc định', async () => {

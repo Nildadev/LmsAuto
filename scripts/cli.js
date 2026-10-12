@@ -9,9 +9,12 @@
  *   --limit=N    giới hạn số bài
  *   --headless   chạy ẩn (mặc định: hiện browser để dễ theo dõi)
  *   --all        không dùng blacklist mặc định
+ *   --complete-files  MODE file tài liệu: quét learn_status toàn khóa,
+ *                     đánh dấu hoàn thành phần pptx/pdf/doc... (chỉ gọi API)
  */
 const { prompt } = require('enquirer');
 const { runFlow } = require('../src/core/flow');
+const { completeFiles } = require('../src/core/complete');
 const { InvalidCredentialsError } = require('../src/core/auth');
 
 const arg = (name) => {
@@ -26,12 +29,14 @@ async function main() {
   const headless = !!arg('headless');
   const limit = arg('limit') ? Number(arg('limit')) : undefined;
   const useDefaultBlacklist = !arg('all');
+  const completeFilesMode = !!arg('complete-files');
 
   console.clear();
   console.log('=================================================');
   console.log('   LMS360 AUTO SOLVER Made With ❤️  By Nildadev');
   console.log('   (login API → scan → solve H5P)');
   if (dryRun) console.log('   🔎 DRY-RUN — chỉ liệt kê, không giải');
+  if (completeFilesMode) console.log('   📄 MODE: đánh dấu hoàn thành FILE tài liệu (không mở browser)');
   console.log('=================================================\n');
 
   const response = await prompt([
@@ -47,6 +52,23 @@ async function main() {
   console.log('\n🚀 Bắt đầu quá trình tự động hóa...\n------------------------------------');
 
   try {
+    // ── MODE: hoàn thành file tài liệu (chỉ gọi API, không mở browser) ──
+    if (completeFilesMode) {
+      const { login } = require('../src/core/auth');
+      const token = await login(response.username, response.password, { logger: console.log });
+      const rep = await completeFiles(token, { logger: console.log, dryRun });
+
+      console.log('\n================ TỔNG KẾT FILE ================');
+      console.log(`📄 File cần đánh dấu: ${rep.files} | ✅ xong: ${rep.marked} | ❌ lỗi: ${rep.failed}`);
+      console.log(`🧩 Bỏ qua (H5P, dùng solver): ${rep.skippedH5p} phần`);
+      for (const it of rep.items) {
+        const mark = it.dryRun ? '·' : it.ok ? '✅' : '⚠️';
+        console.log(`  ${mark} ${it.title} (${it.courseTitle})`);
+      }
+      console.log('==========================================');
+      process.exit(rep.failed > 0 ? 1 : 0);
+    }
+
     const report = await runFlow({
       username: response.username,
       password: response.password,

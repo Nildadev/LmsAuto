@@ -20,6 +20,7 @@ const { extractAnswers } = require('../h5p/extract');
 const { solveBook } = require('../h5p/book');
 const { solveVideo } = require('../h5p/interactiveVideo');
 const { solveOne, pressCheck } = require('../h5p/solver');
+const { solveDoc } = require('../h5p/doc');
 
 const DEFAULT_WAIT_MS = 7000;
 
@@ -29,7 +30,7 @@ function deps(overrides = {}) {
     launch, sleep, scanAll, videoUrl, dismissAll, findPlayerFrame, solveBook, solveVideo,
     solveOne, pressCheck, collectH5P, extractAnswers,
     solveSingle, newTab: null,
-    detectKind, DEFAULT_BLACKLIST,
+    solveDoc, detectKind, DEFAULT_BLACKLIST,
     ...overrides,
   };
 }
@@ -47,7 +48,11 @@ async function detectKind(frame) {
       if (/InteractiveVideo/.test(lib)) return { kind: 'iv', library: lib };
     }
     const first = Object.keys(c)[0];
-    return { kind: first ? 'single' : 'unknown', library: first ? c[first].library : '' };
+    if (first) return { kind: 'single', library: c[first].library };
+    // Không có H5PIntegration.contents => bài "TÀI LIỆU ĐÍNH KÈM" dạng file
+    // (.pptx/.pdf/.doc): không phải H5P, chỉ cần đánh dấu đã xem qua API.
+    const hasViewer = !!document.querySelector('.ql-container, .ql-editor, [class*="preview"], [class*="Preview"], [class*="viewer"], [class*="Viewer"], iframe');
+    return { kind: 'unknown', library: '', isDoc: hasViewer };
   });
 }
 
@@ -111,8 +116,8 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
   const closeTab = async () => { try { await tab.close(); } catch (_) {} };
   if (!frame) { logger('  ⚠️ Không tìm thấy frame player'); await closeTab(); return { ok: false, kind: 'unknown', url }; }
 
-  const { kind, library } = await d.detectKind(frame);
-  logger(`  🔎 Loại: ${kind} (${library || '?'})`);
+  const { kind, library, isDoc } = await d.detectKind(frame);
+  logger(`  🔎 Loại: ${kind} (${library || '?'})${isDoc ? ' [tài liệu file]' : ''}`);
 
   let result;
   if (kind === 'book') {
@@ -125,13 +130,18 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     result = await d.solveVideo(tab, frame, logger);
   } else if (kind === 'single') {
     result = await d.solveSingle(tab, frame, library, logger, d);
+  } else if (isDoc && d.solveDoc) {
+    // File tài liệu (.pptx/.pdf/.doc): chỉ cần đánh dấu đã xem qua API.
+    const token = opts.token || d.token || '';
+    result = await d.solveDoc(item, token, logger, opts);
   } else {
     logger('  ⚠️ Không nhận diện được loại H5P');
     result = { solved: 0, slides: 0, kind };
   }
   const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%')));
   await closeTab();
-  return { ok, kind, library, url, result };
+  // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
+  return { ok, kind: (result && result.kind) || kind, library, url, result };
 }
 
 /**
@@ -185,7 +195,7 @@ async function runFlow(opts = {}) {
       logger(`\n━━━ [${i + 1}/${list.length}] [${it.subject}] ${it.title} ━━━`);
       let res;
       try {
-        res = await solveItem(page, it, logger, opts, d);
+        res = await solveItem(page, it, logger, { ...opts, token }, d);
       } catch (e) {
         logger(`  ❌ Lỗi: ${String(e && e.message).slice(0, 120)}`);
         res = { ok: false, kind: 'error', error: String(e && e.message).slice(0, 200), url: d.videoUrl(it) };
