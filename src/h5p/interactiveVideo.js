@@ -6,7 +6,7 @@
  */
 const { sleep, humanDelay, humanClick } = require('../core/stealth');
 const { extractAnswers } = require('./extract');
-const { solveBlanks, solveDragText, pressAllRetries } = require('./solver');
+const { solveBlanks, solveDragText, pressAllRetries, waitFeedback } = require('./solver');
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -693,7 +693,8 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         const nChk = await checks.count().catch(() => 0);
         for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(200); }
         logger(`  đã bấm ${nChk} nút kiểm tra @${stop}s`);
-        await sleep(900);
+        // Chờ feedback xuất hiện (trả về sớm) thay vì sleep cứng 900ms.
+        await waitFeedback(frame, 1200);
 
         // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
         const fb = await frame.evaluate(() => {

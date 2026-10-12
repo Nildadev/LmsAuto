@@ -20,7 +20,7 @@ const { cpPartCount, cpGoto, openInteractiveBook, ibPageState, ibNext, ibSubmit 
 const { solveElement } = require('./question');
 const { solveVideo } = require('../interactiveVideo');
 const { readFeedback, pressCheckIn } = require('./dom');
-const { answerWithRetry, pressRetry } = require('../solver');
+const { answerWithRetry, pressRetry, waitFeedback } = require('../solver');
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -214,7 +214,7 @@ async function solvePage(frame, elements, logger) {
     // wrong===0 && correct>0 -> tránh báo hoàn thành dù trả lời sai.
     const rr = await answerWithRetry({
       attempt: () => solveElement(frame, container, el, logger),
-      check: async () => { await pressCheckIn(container, logger).catch(() => {}); await sleep(900); },
+      check: async () => { await pressCheckIn(container, logger).catch(() => {}); await waitFeedback(container, 1200); },
       feedback: () => readFeedback(container),
       retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(700); return ok; },
       maxAttempts: 3,

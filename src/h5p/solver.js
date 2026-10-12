@@ -309,6 +309,18 @@ async function countVisible(frame, sel) {
   return frame.evaluate((s) => [...document.querySelectorAll(s)].filter(e => e && e.offsetParent !== null).length, sel);
 }
 
+/** Các selector feedback đúng/sai (mọi dạng H5P). */
+const FEEDBACK_SEL = '.h5p-correct, .h5p-wrong, .h5p-true-false-answer.correct, .h5p-true-false-answer.incorrect, .multichoice-tip.h5p-correct, .multichoice-tip.h5p-wrong, .h5p-question-plus-one, .h5p-question-minus-one, .h5p-sc-is-correct, .h5p-sc-is-wrong';
+
+/**
+ * Chờ tối đa `ms` cho feedback đúng/sai xuất hiện, TRẢ VỀ SỚM ngay khi có.
+ * Dùng thay cho sleep cứng sau khi bấm "Kiểm tra" -> nhanh hơn mà không đổi hành vi
+ * (nếu không có feedback thì cũng chỉ chờ tối đa ms, tương đương sleep cũ).
+ */
+async function waitFeedback(root, ms = 2000) {
+  await root.locator(FEEDBACK_SEL).first().waitFor({ state: 'visible', timeout: ms }).catch(() => {});
+}
+
 /* ── Retry khi câu SAI ──────────────────────────────────────────────────────
  * H5P chỉ cho "Làm lại/Thử lại" khi behaviour.enableRetry = true. Khi đó, sau
  * khi trả lời sai sẽ hiện nút .h5p-question-try-again (hoặc nhãn "Làm lại"/
@@ -418,7 +430,7 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
       if (hasDrag > 0) return solveDrag(frame, item, logger);
       return { solved: false };
     };
-    const checkFn = async () => { await sleep(400); await pressCheck(frame, logger); await sleep(1200); };
+    const checkFn = async () => { await sleep(400); await pressCheck(frame, logger); await waitFeedback(frame, 1500); };
     const fbFn = async () => frame.evaluate(() => {
       const vis = (sel) => [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null).length;
       return { wrong: vis('.h5p-wrong'), correct: vis('.h5p-correct') };
@@ -482,4 +494,4 @@ async function solveOne(frame, item, logger) {
   return { solved: false, reason: 'unsupported:' + kind };
 }
 
-module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, pressRetry, pressAllRetries, retryAvailable, answerWithRetry, solveQuestionSet, countVisible, waitSel, normalizeText };
+module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, pressRetry, pressAllRetries, retryAvailable, answerWithRetry, waitFeedback, FEEDBACK_SEL, solveQuestionSet, countVisible, waitSel, normalizeText };
