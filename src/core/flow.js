@@ -218,10 +218,13 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     }
   }
   const ok = !!(result && (result.solved > 0 || barReached(result.finalScore) || result.noQuestions));
+  // Bài khoá tua (preventSkipping) bị solver bỏ qua: KHÔNG tính là lỗi, KHÔNG
+  // đánh dấu hoàn thành. runFlow sẽ đếm vào report.skipped.
+  const skipped = !!(result && result.skippedLocked);
   await closeTab();
   d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính
   // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
-  return { ok, kind: (result && result.kind) || kind, library, url, result };
+  return { ok, skipped, kind: (result && result.kind) || kind, library, url, result };
 }
 
 /**
@@ -375,6 +378,7 @@ async function runFlow(opts = {}) {
       return report;
     }
 
+    const skippedLockedIds = new Set(); // bài khoá tua đã bỏ qua (M7 không mở lại)
     for (let i = 0; i < list.length; i++) {
       const it = list[i];
       logger(`\n━━━ [${i + 1}/${list.length}] [${it.subject}] ${it.title} ━━━`);
@@ -387,7 +391,13 @@ async function runFlow(opts = {}) {
       }
       const entry = { title: it.title, subject: it.subject, ...res };
       report.items.push(entry);
-      if (res.ok) {
+      if (res.skipped) {
+        // Bài khoá tua -> bỏ qua, KHÔNG tính lỗi, KHÔNG đánh dấu hoàn thành.
+        report.skipped++;
+        if (it.p) skippedLockedIds.add(it.p);
+        logger('  ⏭️ Bỏ qua (khoá tua) — không tính lỗi');
+      }
+      else if (res.ok) {
         report.solved++;
         logger(`  ✅ Xong (${res.kind})`);
         // Đánh dấu hoàn thành server-side (learn_status status=3) — player H5P
@@ -411,6 +421,7 @@ async function runFlow(opts = {}) {
     }
 
     logger(`\n📊 Kết quả: ${report.solved}/${report.total} bài xác nhận xong, ${report.failed} lỗi.`);
+    if (report.skipped > 0) logger(`   ⏭️ Bỏ qua ${report.skipped} bài khoá tua (không tính lỗi).`);
     return report;
   } finally {
     if (previewTimer) clearInterval(previewTimer);

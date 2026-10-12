@@ -251,6 +251,17 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.total, 1, 'p trùng chỉ còn 1 bài');
   });
 
+  await checkAsync('runFlow: bài khoá tua -> skipped (không failed, không markComplete)', async () => {
+    const { d, calls } = fakeDeps({ kind: 'iv', todo: [{ title: 'IV khoá tua', contentId: 'c1', p: 'PLOCK', cs: 'CS1' }] });
+    d.solveVideo = async () => ({ solved: 0, total: 0, skippedLocked: true });
+    const rep = await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d });
+    assert.strictEqual(rep.skipped, 1, 'đếm vào skipped');
+    assert.strictEqual(rep.failed, 0, 'KHÔNG tính lỗi');
+    assert.strictEqual(rep.solved, 0);
+    assert.strictEqual(calls.markComplete, 0, 'bài bỏ qua KHÔNG được markComplete');
+    assert.strictEqual(rep.items[0].skipped, true);
+  });
+
   await checkAsync('deps(): override thắng giá trị mặc định', async () => {
     const merged = deps({ solveBook: async () => 'X' });
     assert.strictEqual(await merged.solveBook(), 'X');

@@ -195,6 +195,9 @@ export default function Home() {
     if (message.includes('Chưa xác nhận hoàn thành')) {
       setStats((p) => ({ ...p, errors: p.errors + 1 }));
     }
+    if (message.includes('Bỏ qua (khoá tua)')) {
+      setStats((p) => ({ ...p, skipped: p.skipped + 1 }));
+    }
     if (message.includes('Kết quả:')) {
       const m = message.match(/Kết quả: (\d+)\/(\d+) bài xác nhận xong, (\d+) lỗi\./);
       if (m) setStats((p) => ({ ...p, completed: parseInt(m[1]), total: parseInt(m[2]), errors: parseInt(m[3]) }));
