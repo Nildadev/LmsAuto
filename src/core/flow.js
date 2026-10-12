@@ -25,7 +25,15 @@ const { solveDoc } = require('../h5p/doc');
 const { markComplete } = require('../h5p/doc');
 const { scanIncomplete } = require('./complete');
 
-const DEFAULT_WAIT_MS = 7000;
+// Chờ NGẮN sau khi goto rồi để findPlayerFrame tự poll (nó chờ tới 15s và trả
+// về ngay khi thấy player). Trước đây ngủ cứng 7s cho MỌI bài -> chậm vô ích.
+const DEFAULT_WAIT_MS = 2500;
+
+/** true nếu thanh điểm đạt ~100%. `bar` là style.width (có thể "100%"/"100.00%"). */
+function barReached(finalScore) {
+  const w = finalScore && finalScore.bar;
+  return w != null && parseFloat(w) >= 99.5;
+}
 
 /** Gộp deps mặc định với deps tiêm vào (để test offline). */
 function deps(overrides = {}) {
@@ -175,6 +183,7 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     logger('  ⚠️ Không tìm thấy frame player');
     await dumpNoFrame(tab, logger).catch(() => {});
     await closeTab();
+    d.currentTab = null; // tab đã đóng -> preview quay về trang chính (tránh chụp tab chết)
     return { ok: false, kind: 'unknown', url };
   }
 
@@ -208,7 +217,7 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
       result = { solved: 0, slides: 0, kind };
     }
   }
-  const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%') || result.noQuestions));
+  const ok = !!(result && (result.solved > 0 || barReached(result.finalScore) || result.noQuestions));
   await closeTab();
   d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính
   // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
@@ -366,15 +375,21 @@ async function runFlow(opts = {}) {
         // Đánh dấu hoàn thành server-side (learn_status status=3) — player H5P
         // KHÔNG tự gọi API này khi solver bấm "Tóm tắt & gửi", nên ta gọi trực tiếp.
         // (kind=doc đã được solveDoc đánh dấu rồi -> bỏ qua.)
-        if (opts.markDone !== false && res.kind !== 'doc' && it.p && it.cs) {
-          const m = await d.markComplete(token, it.p, it.cs, logger, opts).catch(() => null);
-          if (m && m.ok) logger('  🏁 Đã đánh dấu hoàn thành (learn_status=3)');
-          else if (m) logger(`  ⚠️ Đánh dấu hoàn thành thất bại (HTTP ${m.status})`);
+        if (opts.markDone !== false && res.kind !== 'doc') {
+          if (!it.p || !it.cs) {
+            // Thiếu ID -> không gọi được learn_status. Log RÕ thay vì chặn âm thầm
+            // (trước đây bài báo "chưa hoàn thành" mà không hiểu vì sao).
+            logger(`  ⚠️ Thiếu ${!it.p ? 'p (h5p_content_id)' : 'cs (course_id)'} — không đánh dấu hoàn thành được`);
+          } else {
+            const m = await d.markComplete(token, it.p, it.cs, logger, opts).catch(() => null);
+            if (m && m.ok) logger('  🏁 Đã đánh dấu hoàn thành (learn_status=3)');
+            else if (m) logger(`  ⚠️ Đánh dấu hoàn thành thất bại (HTTP ${m.status})`);
+          }
         }
       }
       else { report.failed++; logger('  ⚠️ Chưa xác nhận hoàn thành'); }
       if (typeof opts.onProgress === 'function') opts.onProgress(i, list.length, entry);
-      if (i < list.length - 1) await d.sleep(opts.betweenMs || 2500 + Math.floor(Math.random() * 2500));
+      if (i < list.length - 1) await d.sleep(opts.betweenMs || 1000 + Math.floor(Math.random() * 1000));
     }
 
     logger(`\n📊 Kết quả: ${report.solved}/${report.total} bài xác nhận xong, ${report.failed} lỗi.`);
