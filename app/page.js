@@ -99,9 +99,7 @@ export default function Home() {
   const [username, setUsername]             = useState('');
   const [password, setPassword]             = useState('');
   const [headlessMode, setHeadlessMode]     = useState(true); // mặc định ẩn trên host
-  const [autoConfirm, setAutoConfirm]       = useState(false);
   const [saveCredentials, setSaveCredentials] = useState(false);
-  const [debugMode, setDebugMode]           = useState(false);
   const [blacklistSubjects, setBlacklistSubjects] = useState(
     'võ nhạc,thể dục,xuất phát,nhịp điệu,âm nhạc,bốn mùa hòa ca,đá cầu,quan họ,giai điệu'
   );
@@ -129,9 +127,7 @@ export default function Home() {
     if (savedSettings) {
       try {
         const s = JSON.parse(savedSettings);
-        if (typeof s.debugMode      === 'boolean') setDebugMode(s.debugMode);
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
-        if (typeof s.autoConfirm    === 'boolean') setAutoConfirm(s.autoConfirm);
         if (typeof s.saveCredentials=== 'boolean') setSaveCredentials(s.saveCredentials);
         if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
         if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
@@ -152,9 +148,9 @@ export default function Home() {
       localStorage.removeItem('lms_password');
     }
     localStorage.setItem('lms_settings', JSON.stringify({
-      debugMode, headlessMode, autoConfirm, saveCredentials, scanClass, blacklistSubjects,
+      headlessMode, saveCredentials, scanClass, blacklistSubjects,
     }));
-  }, [username, password, debugMode, headlessMode, autoConfirm, saveCredentials, scanClass, blacklistSubjects]);
+  }, [username, password, headlessMode, saveCredentials, scanClass, blacklistSubjects]);
 
   /* Theme: áp dụng + theo dõi hệ thống khi ở chế độ system */
   useEffect(() => {
@@ -220,7 +216,7 @@ export default function Home() {
       const response = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects: subjects, scanClass }),
+        body: JSON.stringify({ username, password, headlessMode, blacklistSubjects: subjects, scanClass }),
       });
       if (!response.ok) {
         addLog(`❌ Máy chủ trả về lỗi: ${response.status}`);
@@ -323,7 +319,7 @@ export default function Home() {
                   {previewStatus}
                 </span>
               </div>
-              <div className="relative h-[340px] bg-surface-container flex items-center justify-center overflow-hidden">
+              <div className="relative w-full aspect-[1366/768] bg-surface-container flex items-center justify-center overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   ref={previewImgRef}
@@ -386,11 +382,9 @@ export default function Home() {
                 <TextField id="password" label="Mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isRunning} required />
 
                 <div className="pt-2 space-y-3 border-t border-outline">
-                  <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt ẩn trên máy chủ, xem qua ảnh trực tiếp" />
-                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp, không chỉ việc cần làm" />
-                  <Switch label="Tự động chạy" checked={autoConfirm} onChange={() => setAutoConfirm(!autoConfirm)} disabled={isRunning} />
-                  <Switch label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
-                  <Switch label="Chế độ debug" checked={debugMode} onChange={() => setDebugMode(!debugMode)} disabled={isRunning} />
+                  <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt chạy ẩn trên máy chủ; xem qua khung hình trực tiếp bên trái." />
+                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp, không chỉ bài trong “việc cần làm”." />
+                  <Switch label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} hint="Lưu tài khoản/mật khẩu vào trình duyệt để lần sau tự điền." />
                 </div>
 
                 <div>
