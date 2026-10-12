@@ -2,67 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base — Material Design 3 (tông sáng, KHÔNG glow) ─────────────── */
+/* ── Material 3 — token màu dạng RGB channel (đổi được sáng/tối) ──── */
 :root {
   color-scheme: light;
-  --md-bg: #f8fafd;
-  --md-surface: #ffffff;
-  --md-surface-2: #f1f3f4;
-  --md-outline: #dadce0;
-  --md-on-surface: #1f1f1f;
-  --md-on-surface-2: #5f6368;
-  --md-primary: #0b57d0;
-  --md-primary-container: #d3e3fd;
-  --md-success: #188038;
-  --md-error: #d93025;
+  --md-bg: 248 250 253;
+  --md-surface: 255 255 255;
+  --md-surface-container-low: 248 250 253;
+  --md-surface-container: 241 243 244;
+  --md-surface-container-high: 232 234 237;
+  --md-on-surface: 31 31 31;
+  --md-on-surface-variant: 95 99 104;
+  --md-outline: 218 220 224;
+  --md-primary: 11 87 208;
+  --md-on-primary: 255 255 255;
+  --md-primary-container: 211 227 253;
+  --md-on-primary-container: 4 30 73;
+  --md-success: 24 128 56;
+  --md-success-container: 206 234 214;
+  --md-warning: 176 96 0;
+  --md-error: 217 48 37;
+  --md-error-container: 252 232 230;
+}
+
+.dark {
+  color-scheme: dark;
+  --md-bg: 19 19 20;
+  --md-surface: 30 31 32;
+  --md-surface-container-low: 26 27 28;
+  --md-surface-container: 40 42 44;
+  --md-surface-container-high: 51 53 55;
+  --md-on-surface: 227 227 227;
+  --md-on-surface-variant: 196 199 197;
+  --md-outline: 68 71 70;
+  --md-primary: 168 199 250;
+  --md-on-primary: 6 46 111;
+  --md-primary-container: 8 66 160;
+  --md-on-primary-container: 211 227 253;
+  --md-success: 109 213 140;
+  --md-success-container: 15 82 35;
+  --md-warning: 253 214 99;
+  --md-error: 242 184 181;
+  --md-error-container: 140 29 24;
 }
 
 html, body {
-  background-color: var(--md-bg);
-  color: var(--md-on-surface);
+  background-color: rgb(var(--md-bg));
+  color: rgb(var(--md-on-surface));
   font-family: 'Roboto', system-ui, -apple-system, sans-serif;
 }
 
-/* ── Material card (elevation nhẹ, KHÔNG blur/glow) ───────────────── */
+/* ── Material card ────────────────────────────────────────────────── */
 .md-card {
-  background: var(--md-surface);
-  border: 1px solid var(--md-outline);
+  background: rgb(var(--md-surface));
+  border: 1px solid rgb(var(--md-outline));
   border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.10), 0 1px 3px 1px rgba(60, 64, 67, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px 1px rgba(0, 0, 0, 0.06);
 }
 
-/* ── Filled button (Material 3) ───────────────────────────────────── */
+/* ── Filled button ────────────────────────────────────────────────── */
 .md-btn {
-  background: var(--md-primary);
-  color: #ffffff;
+  background: rgb(var(--md-primary));
+  color: rgb(var(--md-on-primary));
   border-radius: 9999px;
-  transition: box-shadow 0.2s, background-color 0.2s, transform 0.05s;
+  transition: box-shadow 0.2s, background-color 0.2s, transform 0.05s, opacity 0.2s;
 }
-.md-btn:hover:not(:disabled) {
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
-}
+.md-btn:hover:not(:disabled) { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15); }
 .md-btn:active:not(:disabled) { transform: scale(0.985); }
-.md-btn:disabled { background: #e3e3e3; color: #9aa0a6; cursor: not-allowed; }
+.md-btn:disabled { background: rgb(var(--md-surface-container-high)); color: rgb(var(--md-on-surface-variant)); opacity: 0.7; cursor: not-allowed; }
 
 /* ── Text button ──────────────────────────────────────────────────── */
 .md-textbtn {
-  color: var(--md-primary);
+  color: rgb(var(--md-primary));
   border-radius: 9999px;
   transition: background-color 0.15s;
 }
-.md-textbtn:hover:not(:disabled) { background: rgba(11, 87, 208, 0.08); }
-.md-textbtn:disabled { color: #9aa0a6; cursor: not-allowed; }
+.md-textbtn:hover:not(:disabled) { background: rgb(var(--md-primary) / 0.10); }
+.md-textbtn:disabled { color: rgb(var(--md-on-surface-variant)); opacity: 0.5; cursor: not-allowed; }
 
-/* ── Status dot pulse (nhấp nháy nhẹ, KHÔNG glow) ─────────────────── */
+/* ── Icon button ──────────────────────────────────────────────────── */
+.md-iconbtn {
+  color: rgb(var(--md-on-surface-variant));
+  border-radius: 9999px;
+  transition: background-color 0.15s, color 0.15s;
+}
+.md-iconbtn:hover { background: rgb(var(--md-on-surface) / 0.08); color: rgb(var(--md-on-surface)); }
+
+/* ── Status dot pulse (nhẹ, không glow) ───────────────────────────── */
 @keyframes md-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .md-pulse { animation: md-pulse 1.6s ease-in-out infinite; }
 
-/* ── Fade nhẹ khi có log mới ──────────────────────────────────────── */
 @keyframes md-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .md-in { animation: md-in 0.2s ease both; }
 
-/* ── Scrollbar kiểu Material ──────────────────────────────────────── */
+/* ── Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar          { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: #dadce0; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
+::-webkit-scrollbar-thumb    { background: rgb(var(--md-outline)); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--md-on-surface-variant) / 0.6); }

@@ -12,7 +12,7 @@ function getTimeStamp() {
 // Màu log theo Material
 function getLogStyle(msg) {
   if (msg.startsWith('❌')) return 'text-error';
-  if (msg.startsWith('⚠️')) return 'text-[#b06000]';
+  if (msg.startsWith('⚠️')) return 'text-warning';
   if (msg.startsWith('✅') || msg.startsWith('🏁')) return 'text-success';
   if (msg.startsWith('🚀') || msg.startsWith('📊')) return 'text-primary';
   return 'text-on-surface';
@@ -55,7 +55,7 @@ function Switch({ label, checked, onChange, disabled, hint }) {
         disabled={disabled}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0
           focus:outline-none focus:ring-2 focus:ring-primary/40
-          ${checked ? 'bg-primary' : 'bg-[#bdc1c6]'}`}
+          ${checked ? 'bg-primary' : 'bg-outline'}`}
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
@@ -78,13 +78,13 @@ function TextField({ id, label, type = 'text', value, onChange, disabled, requir
         disabled={disabled}
         value={value}
         onChange={onChange}
-        className="peer w-full rounded-lg border border-outline bg-white px-4 pt-5 pb-2 text-[15px] text-on-surface outline-none transition-colors
+        className="peer w-full rounded-lg border border-outline bg-surface px-4 pt-5 pb-2 text-[15px] text-on-surface outline-none transition-colors
           focus:border-primary focus:ring-1 focus:ring-primary
           disabled:bg-surface-container disabled:cursor-not-allowed"
       />
       <label
         htmlFor={id}
-        className="pointer-events-none absolute left-3 top-[-9px] bg-white px-1 text-[12px] text-on-surface-variant transition-all
+        className="pointer-events-none absolute left-3 top-[-9px] bg-surface px-1 text-[12px] text-on-surface-variant transition-all
           peer-placeholder-shown:top-[15px] peer-placeholder-shown:text-[14px]
           peer-focus:top-[-9px] peer-focus:text-[12px] peer-focus:text-primary"
       >
@@ -108,19 +108,24 @@ export default function Home() {
   const [showSettings, setShowSettings]     = useState(false);
   const [logs, setLogs]                     = useState([]);
   const [isRunning, setIsRunning]           = useState(false);
-  const [previewSrc, setPreviewSrc]         = useState('');
+  const [hasPreview, setHasPreview]         = useState(false);
   const [currentItem, setCurrentItem]       = useState('');
+  const [theme, setTheme]                   = useState('system'); // system | light | dark
+  const [scanClass, setScanClass]           = useState(true);     // quét cả khóa học của lớp
   const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
-  const logEndRef  = useRef(null);
-  const loadedRef  = useRef(false);
+  const logEndRef     = useRef(null);
+  const previewImgRef = useRef(null);
+  const loadedRef     = useRef(false);
 
   /* Load saved settings */
   useEffect(() => {
     const savedUser     = localStorage.getItem('lms_username');
     const savedPass     = localStorage.getItem('lms_password');
     const savedSettings = localStorage.getItem('lms_settings');
+    const savedTheme    = localStorage.getItem('lms_theme');
     if (savedUser) setUsername(savedUser);
     if (savedPass) setPassword(savedPass);
+    if (savedTheme) setTheme(savedTheme);
     if (savedSettings) {
       try {
         const s = JSON.parse(savedSettings);
@@ -128,6 +133,7 @@ export default function Home() {
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
         if (typeof s.autoConfirm    === 'boolean') setAutoConfirm(s.autoConfirm);
         if (typeof s.saveCredentials=== 'boolean') setSaveCredentials(s.saveCredentials);
+        if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
         if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
       } catch { /* ignore */ }
     }
@@ -146,9 +152,25 @@ export default function Home() {
       localStorage.removeItem('lms_password');
     }
     localStorage.setItem('lms_settings', JSON.stringify({
-      debugMode, headlessMode, autoConfirm, saveCredentials, blacklistSubjects,
+      debugMode, headlessMode, autoConfirm, saveCredentials, scanClass, blacklistSubjects,
     }));
-  }, [username, password, debugMode, headlessMode, autoConfirm, saveCredentials, blacklistSubjects]);
+  }, [username, password, debugMode, headlessMode, autoConfirm, saveCredentials, scanClass, blacklistSubjects]);
+
+  /* Theme: áp dụng + theo dõi hệ thống khi ở chế độ system */
+  useEffect(() => {
+    const apply = () => {
+      const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', dark);
+    };
+    apply();
+    if (loadedRef.current) localStorage.setItem('lms_theme', theme);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => { if (theme === 'system') apply(); };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [theme]);
+
+  const cycleTheme = () => setTheme((t) => (t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system'));
 
   /* Auto-scroll log */
   useEffect(() => {
@@ -187,7 +209,8 @@ export default function Home() {
     if (isRunning) return;
     setIsRunning(true);
     setLogs([]);
-    setPreviewSrc('');
+    setHasPreview(false);
+    if (previewImgRef.current) previewImgRef.current.src = '';
     setCurrentItem('');
     setStats({ total: 0, completed: 0, skipped: 0, errors: 0 });
     addLog('🚀 Đang khởi tạo kết nối với LMS360...');
@@ -197,7 +220,7 @@ export default function Home() {
       const response = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects: subjects }),
+        body: JSON.stringify({ username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects: subjects, scanClass }),
       });
       if (!response.ok) {
         addLog(`❌ Máy chủ trả về lỗi: ${response.status}`);
@@ -217,7 +240,11 @@ export default function Home() {
           try {
             const data = JSON.parse(line);
             if (data.message) addLog(data.message);
-            if (data.screenshot) setPreviewSrc(data.screenshot);
+            if (data.screenshot) {
+              // Cập nhật ảnh qua ref để không re-render mỗi frame (~30fps).
+              if (previewImgRef.current) previewImgRef.current.src = data.screenshot;
+              setHasPreview(true); // React bỏ qua nếu đã true
+            }
             if (data.done) { addLog('🏁 Hoàn tất!'); setIsRunning(false); }
             if (data.error) { addLog(`❌ Lỗi: ${data.error}`); setIsRunning(false); }
           } catch { /* skip */ }
@@ -240,16 +267,28 @@ export default function Home() {
     <div className="min-h-screen bg-background text-on-surface font-body-base">
 
       {/* ── Top app bar ─────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 bg-white border-b border-outline">
+      <header className="sticky top-0 z-50 bg-surface border-b border-outline">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-primary text-[26px]">school</span>
             <span className="text-[18px] font-medium text-on-surface">LMS360 Auto Solver</span>
             <span className="text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container">v2.0</span>
           </div>
-          <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
-            <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success md-pulse' : 'bg-[#bdc1c6]'}`} />
-            {isRunning ? 'Đang chạy…' : 'Sẵn sàng'}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={cycleTheme}
+              title={`Giao diện: ${theme === 'system' ? 'Theo hệ thống' : theme === 'light' ? 'Sáng' : 'Tối'}`}
+              className="md-iconbtn w-10 h-10 flex items-center justify-center"
+            >
+              <span className="material-symbols-outlined">
+                {theme === 'system' ? 'brightness_auto' : theme === 'light' ? 'light_mode' : 'dark_mode'}
+              </span>
+            </button>
+            <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
+              <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success md-pulse' : 'bg-outline'}`} />
+              {isRunning ? 'Đang chạy…' : 'Sẵn sàng'}
+            </div>
           </div>
         </div>
       </header>
@@ -284,12 +323,15 @@ export default function Home() {
                   {previewStatus}
                 </span>
               </div>
-              <div className="h-[340px] bg-surface-container flex items-center justify-center overflow-hidden">
-                {previewSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previewSrc} alt="Xem trực tiếp" className="w-full h-full object-contain" />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-on-surface-variant">
+              <div className="relative h-[340px] bg-surface-container flex items-center justify-center overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={previewImgRef}
+                  alt="Xem trực tiếp"
+                  className={`w-full h-full object-contain ${hasPreview ? '' : 'hidden'}`}
+                />
+                {!hasPreview && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl opacity-50">visibility_off</span>
                     <span className="text-[13px]">{isRunning ? 'Đang tải hình ảnh…' : 'Chưa có hình ảnh'}</span>
                   </div>
@@ -345,6 +387,7 @@ export default function Home() {
 
                 <div className="pt-2 space-y-3 border-t border-outline">
                   <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt ẩn trên máy chủ, xem qua ảnh trực tiếp" />
+                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp, không chỉ việc cần làm" />
                   <Switch label="Tự động chạy" checked={autoConfirm} onChange={() => setAutoConfirm(!autoConfirm)} disabled={isRunning} />
                   <Switch label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
                   <Switch label="Chế độ debug" checked={debugMode} onChange={() => setDebugMode(!debugMode)} disabled={isRunning} />
@@ -363,7 +406,7 @@ export default function Home() {
                       value={blacklistSubjects}
                       onChange={(e) => setBlacklistSubjects(e.target.value)}
                       placeholder="thể dục, âm nhạc, mĩ thuật..."
-                      className="w-full rounded-lg border border-outline bg-white px-3 py-2 text-[13px] text-on-surface outline-none resize-none font-terminal
+                      className="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-[13px] text-on-surface outline-none resize-none font-terminal
                         focus:border-primary focus:ring-1 focus:ring-primary disabled:bg-surface-container disabled:cursor-not-allowed"
                     />
                   )}

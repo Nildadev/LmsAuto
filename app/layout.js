@@ -5,10 +5,22 @@ export const metadata = {
   description: 'Tự động đăng nhập, làm bài và hoàn thành khóa học trên lms360.vn',
 };
 
+// Đặt theme sớm (trước khi render) để tránh nháy sáng/tối.
+const themeInit = `
+(function(){
+  try {
+    var t = localStorage.getItem('lms_theme') || 'system';
+    var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({ children }) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
