@@ -121,10 +121,10 @@ function fakeFetch(responder) {
     assert.strictEqual(f.calls[0].body.status, 3);
   });
 
-  await check('solveDoc: markComplete 500 nhung view OK -> solved=true (view la "da xem")', async () => {
+  await check('solveDoc: markComplete 500 nhung view OK -> solved=false (view KHONG tinh la xong)', async () => {
     fakeFetch((n) => (n === 1 ? { ok: true, status: 200, text: async () => '{}' } : { ok: false, status: 500, text: async () => 'err' }));
     const r = await solveDoc({ p: 'P1', c: '', cs: 'CS1' }, 'TOK', () => {}, { apiBase: 'http://x', dwellMs: 0, sleep: async () => {} });
-    assert.strictEqual(r.solved, true);
+    assert.strictEqual(r.solved, false);
     assert.strictEqual(r.viewed, true);
     assert.strictEqual(r.marked, false);
     assert.strictEqual(r.status, 500);
