@@ -2,92 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Base ─────────────────────────────────────────── */
+/* ── Base — Material Design 3 (tông sáng, KHÔNG glow) ─────────────── */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --md-bg: #f8fafd;
+  --md-surface: #ffffff;
+  --md-surface-2: #f1f3f4;
+  --md-outline: #dadce0;
+  --md-on-surface: #1f1f1f;
+  --md-on-surface-2: #5f6368;
+  --md-primary: #0b57d0;
+  --md-primary-container: #d3e3fd;
+  --md-success: #188038;
+  --md-error: #d93025;
 }
 
 html, body {
-  background-color: #0b1326;
-  color: #dae2fd;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--md-bg);
+  color: var(--md-on-surface);
+  font-family: 'Roboto', system-ui, -apple-system, sans-serif;
 }
 
-/* ── Glass Panel ──────────────────────────────────── */
-.glass-panel {
-  background-color: rgba(11, 19, 38, 0.7);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  border: 1px solid #3e4850;
+/* ── Material card (elevation nhẹ, KHÔNG blur/glow) ───────────────── */
+.md-card {
+  background: var(--md-surface);
+  border: 1px solid var(--md-outline);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.10), 0 1px 3px 1px rgba(60, 64, 67, 0.08);
 }
 
-.glass-active {
-  border: 1px solid rgba(137, 206, 255, 0.4);
-  box-shadow: inset 0 0 8px rgba(137, 206, 255, 0.2);
+/* ── Filled button (Material 3) ───────────────────────────────────── */
+.md-btn {
+  background: var(--md-primary);
+  color: #ffffff;
+  border-radius: 9999px;
+  transition: box-shadow 0.2s, background-color 0.2s, transform 0.05s;
 }
-
-/* ── Pulse animation (status dot) ─────────────────── */
-.pulse-dot {
-  animation: pulse-glow 2s infinite;
+.md-btn:hover:not(:disabled) {
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
 }
+.md-btn:active:not(:disabled) { transform: scale(0.985); }
+.md-btn:disabled { background: #e3e3e3; color: #9aa0a6; cursor: not-allowed; }
 
-@keyframes pulse-glow {
-  0%   { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(78, 222, 163, 0.7); }
-  70%  { transform: scale(1);   box-shadow: 0 0 0 6px rgba(78, 222, 163, 0); }
-  100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(78, 222, 163, 0); }
+/* ── Text button ──────────────────────────────────────────────────── */
+.md-textbtn {
+  color: var(--md-primary);
+  border-radius: 9999px;
+  transition: background-color 0.15s;
 }
+.md-textbtn:hover:not(:disabled) { background: rgba(11, 87, 208, 0.08); }
+.md-textbtn:disabled { color: #9aa0a6; cursor: not-allowed; }
 
-/* ── Terminal ─────────────────────────────────────── */
-.terminal-bg {
-  background-color: rgba(2, 6, 23, 0.92);
-}
+/* ── Status dot pulse (nhấp nháy nhẹ, KHÔNG glow) ─────────────────── */
+@keyframes md-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.md-pulse { animation: md-pulse 1.6s ease-in-out infinite; }
 
-/* ── Start button ─────────────────────────────────── */
-.btn-cyan {
-  background: linear-gradient(135deg, #89ceff 0%, #0ea5e9 100%);
-  box-shadow: 0 0 15px rgba(137, 206, 255, 0.4);
-  transition: filter 0.2s, transform 0.1s, box-shadow 0.2s;
-}
+/* ── Fade nhẹ khi có log mới ──────────────────────────────────────── */
+@keyframes md-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.md-in { animation: md-in 0.2s ease both; }
 
-.btn-cyan:hover:not(:disabled) {
-  filter: brightness(1.12);
-  box-shadow: 0 0 28px rgba(137, 206, 255, 0.6);
-}
-
-.btn-cyan:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.btn-cyan:disabled {
-  background: linear-gradient(135deg, #1e3a5f 0%, #1a4a6e 100%);
-  box-shadow: none;
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-/* ── Log fade-in ──────────────────────────────────── */
-@keyframes logFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.log-entry {
-  animation: logFadeIn 0.2s ease both;
-}
-
-/* ── Custom scrollbar ─────────────────────────────── */
-::-webkit-scrollbar          { width: 5px; }
+/* ── Scrollbar kiểu Material ──────────────────────────────────────── */
+::-webkit-scrollbar          { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track    { background: transparent; }
-::-webkit-scrollbar-thumb    { background: rgba(137, 206, 255, 0.2); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(137, 206, 255, 0.45); }
-
-/* ── Stats card fade-up ───────────────────────────── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.fade-up-1 { animation: fadeUp 0.5s 0.05s ease both; }
-.fade-up-2 { animation: fadeUp 0.5s 0.15s ease both; }
-.fade-up-3 { animation: fadeUp 0.5s 0.25s ease both; }
-.fade-up-4 { animation: fadeUp 0.5s 0.35s ease both; }
+::-webkit-scrollbar-thumb    { background: #dadce0; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }

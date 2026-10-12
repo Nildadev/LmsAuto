@@ -9,50 +9,43 @@ function getTimeStamp() {
   });
 }
 
+// Màu log theo Material
 function getLogStyle(msg) {
-  if (msg.startsWith('❌') || msg.startsWith('⚠️')) return 'text-[#ffb4ab]';
-  if (msg.startsWith('✅') || msg.startsWith('🏁'))  return 'text-[#4edea3]';
-  if (msg.startsWith('🚀') || msg.startsWith('📊'))  return 'text-[#89ceff]';
-  if (msg.includes('WARN') || msg.includes('⚠'))     return 'text-[#facc15]';
-  return 'text-[#dae2fd]';
+  if (msg.startsWith('❌')) return 'text-error';
+  if (msg.startsWith('⚠️')) return 'text-[#b06000]';
+  if (msg.startsWith('✅') || msg.startsWith('🏁')) return 'text-success';
+  if (msg.startsWith('🚀') || msg.startsWith('📊')) return 'text-primary';
+  return 'text-on-surface';
 }
 
-/* ─── Circular Progress SVG ────────────────────────────────────────────── */
-function CircularStat({ value, max, color, icon, label }) {
-  const r = 28;
-  const circ = 2 * Math.PI * r; // ≈ 175.9
-  const offset = max > 0 ? circ - (value / max) * circ : circ;
+/* ─── Stat card (Material) ─────────────────────────────────────────────── */
+function StatCard({ value, label, icon, tone = 'neutral' }) {
+  const tones = {
+    primary: 'bg-primary-container text-primary',
+    success: 'bg-success-container text-success',
+    error: 'bg-error-container text-error',
+    neutral: 'bg-surface-container text-on-surface-variant',
+  };
   return (
-    <div className="glass-panel rounded-lg p-6 flex items-center justify-between relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#89ceff]/5 to-transparent pointer-events-none" />
-      <div>
-        <div className="font-mono-label text-mono-label text-on-surface-variant mb-1 uppercase tracking-wider">
-          {label}
-        </div>
-        <div className={`text-headline-lg font-semibold ${color}`}>{value}</div>
+    <div className="md-card p-5 flex items-center gap-4">
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${tones[tone]}`}>
+        <span className="material-symbols-outlined">{icon}</span>
       </div>
-      <div className="w-16 h-16 flex items-center justify-center relative">
-        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 64 64">
-          <circle className="text-surface-container" cx="32" cy="32" r={r}
-            fill="none" stroke="currentColor" strokeWidth="4" />
-          <circle cx="32" cy="32" r={r} fill="none" stroke="currentColor" strokeWidth="4"
-            strokeDasharray={circ} strokeDashoffset={offset}
-            strokeLinecap="round"
-            className={`${color} transition-all duration-700`} />
-        </svg>
-        <span className={`material-symbols-outlined text-xl relative z-10 ${color}`}>{icon}</span>
+      <div className="min-w-0">
+        <div className="text-[28px] font-semibold leading-none text-on-surface">{value}</div>
+        <div className="text-[13px] text-on-surface-variant mt-1 truncate">{label}</div>
       </div>
     </div>
   );
 }
 
-/* ─── Toggle Switch ────────────────────────────────────────────────────── */
-function Toggle({ label, checked, onChange, disabled, hint }) {
+/* ─── Material switch ──────────────────────────────────────────────────── */
+function Switch({ label, checked, onChange, disabled, hint }) {
   return (
-    <label className={`flex items-center justify-between ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+    <label className={`flex items-center justify-between gap-4 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
       <span className="flex flex-col">
-        <span className="text-[14px] text-[#bec8d2]">{label}</span>
-        {hint && <span className="text-[11px] text-[#3e4850]">{hint}</span>}
+        <span className="text-[14px] text-on-surface">{label}</span>
+        {hint && <span className="text-[12px] text-on-surface-variant">{hint}</span>}
       </span>
       <button
         type="button"
@@ -60,16 +53,44 @@ function Toggle({ label, checked, onChange, disabled, hint }) {
         aria-checked={checked}
         onClick={disabled ? undefined : onChange}
         disabled={disabled}
-        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200
-          focus:outline-none disabled:cursor-not-allowed shrink-0
-          ${checked ? 'bg-[#00a572]' : 'bg-[#222a3d]'}`}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0
+          focus:outline-none focus:ring-2 focus:ring-primary/40
+          ${checked ? 'bg-primary' : 'bg-[#bdc1c6]'}`}
       >
         <span
-          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-[#4edea3] shadow transition-transform duration-200
-            ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`}
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
+            ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}
         />
       </button>
     </label>
+  );
+}
+
+/* ─── Material outlined text field (floating label) ────────────────────── */
+function TextField({ id, label, type = 'text', value, onChange, disabled, required }) {
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type={type}
+        placeholder=" "
+        required={required}
+        disabled={disabled}
+        value={value}
+        onChange={onChange}
+        className="peer w-full rounded-lg border border-outline bg-white px-4 pt-5 pb-2 text-[15px] text-on-surface outline-none transition-colors
+          focus:border-primary focus:ring-1 focus:ring-primary
+          disabled:bg-surface-container disabled:cursor-not-allowed"
+      />
+      <label
+        htmlFor={id}
+        className="pointer-events-none absolute left-3 top-[-9px] bg-white px-1 text-[12px] text-on-surface-variant transition-all
+          peer-placeholder-shown:top-[15px] peer-placeholder-shown:text-[14px]
+          peer-focus:top-[-9px] peer-focus:text-[12px] peer-focus:text-primary"
+      >
+        {label}
+      </label>
+    </div>
   );
 }
 
@@ -91,9 +112,9 @@ export default function Home() {
   const [currentItem, setCurrentItem]       = useState('');
   const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
   const logEndRef  = useRef(null);
-  const loadedRef  = useRef(false); // gate: don't persist before loading
+  const loadedRef  = useRef(false);
 
-  /* Load saved settings on mount */
+  /* Load saved settings */
   useEffect(() => {
     const savedUser     = localStorage.getItem('lms_username');
     const savedPass     = localStorage.getItem('lms_password');
@@ -108,13 +129,13 @@ export default function Home() {
         if (typeof s.autoConfirm    === 'boolean') setAutoConfirm(s.autoConfirm);
         if (typeof s.saveCredentials=== 'boolean') setSaveCredentials(s.saveCredentials);
         if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
-      } catch { /* corrupted storage — ignore */ }
+      } catch { /* ignore */ }
     }
     loadedRef.current = true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Persist settings — only after initial load to avoid clobbering */
+  /* Persist settings */
   useEffect(() => {
     if (!loadedRef.current) return;
     if (saveCredentials) {
@@ -129,15 +150,14 @@ export default function Home() {
     }));
   }, [username, password, debugMode, headlessMode, autoConfirm, saveCredentials, blacklistSubjects]);
 
-  /* Auto-scroll terminal */
+  /* Auto-scroll log */
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  /* Parse log messages for stats (khớp log của engine mới src/core/flow.js) */
+  /* Parse log -> stats (khớp engine mới src/core/flow.js) */
   const addLog = (message) => {
     setLogs((prev) => [...prev, { message, time: getTimeStamp() }]);
-    // scan: "📋 Được giao: A bài — cần làm: B" -> total=B, skipped=A-B
     if (message.includes('cần làm')) {
       const totalM = message.match(/cần làm: (\d+)/);
       const assignedM = message.match(/Được giao: (\d+)/);
@@ -147,25 +167,21 @@ export default function Home() {
         setStats((p) => ({ ...p, total, skipped: Math.max(0, assigned - total), completed: 0, errors: 0 }));
       }
     }
-    // mỗi bài xong: "  ✅ Xong (kind)"
     if (message.includes('✅ Xong')) {
       setStats((p) => ({ ...p, completed: p.completed + 1 }));
     }
-    // bài chưa xác nhận hoàn thành -> lỗi
     if (message.includes('Chưa xác nhận hoàn thành')) {
       setStats((p) => ({ ...p, errors: p.errors + 1 }));
     }
-    // kết quả cuối: "📊 Kết quả: solved/total bài xác nhận xong, failed lỗi."
     if (message.includes('Kết quả:')) {
       const m = message.match(/Kết quả: (\d+)\/(\d+) bài xác nhận xong, (\d+) lỗi\./);
       if (m) setStats((p) => ({ ...p, completed: parseInt(m[1]), total: parseInt(m[2]), errors: parseInt(m[3]) }));
     }
-    // bài đang làm: "━━━ [i/n] [subject] title ━━━"
     const itemM = message.match(/━━━ \[\d+\/\d+\] \[[^\]]*\] (.+) ━━━/);
     if (itemM) setCurrentItem(itemM[1]);
   };
 
-  /* Start automation */
+  /* Start */
   const startAutomation = async (e) => {
     e.preventDefault();
     if (isRunning) return;
@@ -202,9 +218,9 @@ export default function Home() {
             const data = JSON.parse(line);
             if (data.message) addLog(data.message);
             if (data.screenshot) setPreviewSrc(data.screenshot);
-            if (data.done) { addLog('🏁 Tự động hóa hoàn tất thành công!'); setIsRunning(false); }
+            if (data.done) { addLog('🏁 Hoàn tất!'); setIsRunning(false); }
             if (data.error) { addLog(`❌ Lỗi: ${data.error}`); setIsRunning(false); }
-          } catch { /* skip malformed */ }
+          } catch { /* skip */ }
         }
       }
     } catch (err) {
@@ -217,254 +233,170 @@ export default function Home() {
 
   const progress = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
+  const previewStatus = isRunning ? (headlessMode ? 'HEADLESS' : 'VISIBLE') : 'IDLE';
+
   /* ── Render ──────────────────────────────────────────────────────────── */
   return (
-    <div className="flex flex-col min-h-screen bg-background text-on-surface font-['Inter',system-ui,sans-serif] text-[16px]">
+    <div className="min-h-screen bg-background text-on-surface font-body-base">
 
-      {/* ── Top App Bar ─────────────────────────────────────────────────── */}
-      <header className="z-50 w-full flex justify-between items-center px-8 h-16 shrink-0
-        bg-slate-950/70 backdrop-blur-[25px] border-b border-slate-800/50
-        shadow-[inset_0_0_8px_rgba(14,165,233,0.1)]">
-        <div className="flex items-center gap-4">
-          <span className="text-lg font-black tracking-tighter text-sky-400
-            drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]">
-            LMS360 AUTO SOLVER
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-[#89ceff]/10 border border-[#89ceff]/30
-            text-[11px] tracking-widest text-[#89ceff] font-['Space_Grotesk']">
-            v2.0
-          </span>
-          <div className="flex items-center gap-2 ml-2">
-            <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-[#4edea3] pulse-dot' : 'bg-slate-500'}`} />
-            <span className="font-['Space_Grotesk'] text-[12px] tracking-widest font-medium
-              text-[#4edea3]">
-              {isRunning ? 'Running...' : 'System Online'}
-            </span>
+      {/* ── Top app bar ─────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-50 bg-white border-b border-outline">
+        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-primary text-[26px]">school</span>
+            <span className="text-[18px] font-medium text-on-surface">LMS360 Auto Solver</span>
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container">v2.0</span>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-slate-500 hover:text-sky-300
-            hover:bg-sky-500/10 p-2 rounded-full cursor-pointer transition-all">
-            monitoring
-          </span>
-          <div className="w-8 h-8 rounded-full bg-[#222a3d] border border-[#3e4850]
-            flex items-center justify-center hover:border-[#89ceff] transition-colors cursor-pointer
-            text-xs font-bold text-[#89ceff]">
-            ND
+          <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
+            <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success md-pulse' : 'bg-[#bdc1c6]'}`} />
+            {isRunning ? 'Đang chạy…' : 'Sẵn sàng'}
           </div>
         </div>
       </header>
 
-      {/* ── Main Scrollable Area ─────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-        <div className="max-w-[1600px] mx-auto space-y-6">
+      <main className="max-w-[1400px] mx-auto p-6 space-y-6">
 
-          {/* ── Stats Row ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="fade-up-1">
-              <CircularStat value={stats.total} max={Math.max(stats.total, 1)} color="text-[#89ceff]" icon="library_books" label="Tổng bài" />
+        {/* ── Stats ─────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard value={stats.total}     label="Tổng bài" icon="library_books" tone="primary" />
+          <StatCard value={stats.completed} label="Đã xong"  icon="task_alt"      tone="success" />
+          <StatCard value={stats.errors}    label="Lỗi"      icon="error"         tone="error" />
+          <StatCard value={stats.skipped}   label="Bỏ qua"   icon="skip_next"     tone="neutral" />
+        </div>
+
+        {/* ── Work area ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          {/* Left: preview + log */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+
+            {/* Live preview */}
+            <div className="md-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 h-11 border-b border-outline">
+                <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                  Xem trực tiếp
+                </div>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium tracking-wide
+                  ${isRunning
+                    ? 'bg-primary-container text-on-primary-container'
+                    : 'bg-surface-container text-on-surface-variant'}`}>
+                  {previewStatus}
+                </span>
+              </div>
+              <div className="h-[340px] bg-surface-container flex items-center justify-center overflow-hidden">
+                {previewSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewSrc} alt="Xem trực tiếp" className="w-full h-full object-contain" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-4xl opacity-50">visibility_off</span>
+                    <span className="text-[13px]">{isRunning ? 'Đang tải hình ảnh…' : 'Chưa có hình ảnh'}</span>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-2 border-t border-outline text-[13px] text-on-surface-variant truncate">
+                {currentItem ? `▶ ${currentItem}`
+                  : (isRunning ? 'Đang xử lý…' : 'Trình duyệt chạy ẩn trên máy chủ — đây là hình ảnh trực tiếp.')}
+              </div>
             </div>
-            <div className="fade-up-2">
-              <CircularStat value={stats.completed} max={Math.max(stats.total, 1)} color="text-[#4edea3]" icon="task_alt" label="Đã xong" />
-            </div>
-            <div className="fade-up-3">
-              <CircularStat value={stats.errors} max={Math.max(stats.total, 1)} color="text-[#ffb4ab]" icon="error" label="Lỗi" />
-            </div>
-            <div className="fade-up-4">
-              <CircularStat value={stats.skipped} max={Math.max(stats.total, 1)} color="text-[#3e4850]" icon="skip_next" label="Bỏ qua" />
+
+            {/* Log */}
+            <div className="md-card overflow-hidden flex flex-col h-[360px]">
+              <div className="flex items-center justify-between px-4 h-11 border-b border-outline">
+                <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[18px]">terminal</span>
+                  Nhật ký
+                </div>
+                <button onClick={clearLogs} disabled={isRunning || logs.length === 0}
+                  className="md-textbtn text-[12px] px-3 py-1 font-medium">
+                  Xoá
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto bg-surface-container-low p-4 font-terminal text-terminal">
+                {logs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-4xl opacity-50">terminal</span>
+                    <span className="text-[13px]">Chưa có nhật ký</span>
+                  </div>
+                ) : (
+                  logs.map((log, i) => (
+                    <div key={i} className="flex gap-2 md-in">
+                      <span className="text-on-surface-variant/50 w-8 shrink-0 text-right select-none text-[11px] pt-[2px]">{i + 1}</span>
+                      <span className="text-on-surface-variant shrink-0 text-[12px]">[{log.time}]</span>
+                      <span className={`${getLogStyle(log.message)} break-words`}>{log.message}</span>
+                    </div>
+                  ))
+                )}
+                {isRunning && <div className="pl-10 pt-1"><span className="inline-block w-[7px] h-4 bg-primary animate-pulse" /></div>}
+                <div ref={logEndRef} />
+              </div>
             </div>
           </div>
 
-          {/* ── Work Area ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Right: controls */}
+          <div className="lg:col-span-4">
+            <div className="md-card p-6 flex flex-col h-full">
+              <h2 className="text-headline-md text-on-surface mb-5">Bắt đầu</h2>
 
-            {/* ── Left column (preview + terminal) ───────────────────────── */}
-            <div className="lg:col-span-8 flex flex-col gap-6">
+              <form onSubmit={startAutomation} className="flex flex-col gap-4 flex-1">
+                <TextField id="username" label="Tài khoản" value={username} onChange={(e) => setUsername(e.target.value)} disabled={isRunning} required />
+                <TextField id="password" label="Mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isRunning} required />
 
-              {/* Browser preview */}
-              <div className="glass-panel rounded-lg overflow-hidden fade-up-1">
-                <div className="flex items-center px-4 py-2.5 bg-[#2d3449] border-b border-[#3e4850]/40 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#ffb4ab]" />
-                    <div className="w-3 h-3 rounded-full bg-[#facc15]" />
-                    <div className="w-3 h-3 rounded-full bg-[#4edea3]" />
-                  </div>
-                  <div className="mx-auto font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2]">
-                    browser_preview · live
-                  </div>
-                  <span className={`flex items-center gap-1 font-['Space_Grotesk'] text-[11px] tracking-widest
-                    ${isRunning ? 'text-[#4edea3]' : 'text-[#3e4850]'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#4edea3] pulse-dot' : 'bg-[#3e4850]'}`} />
-                    {isRunning ? (headlessMode ? 'HEADLESS' : 'VISIBLE') : 'IDLE'}
-                  </span>
+                <div className="pt-2 space-y-3 border-t border-outline">
+                  <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt ẩn trên máy chủ, xem qua ảnh trực tiếp" />
+                  <Switch label="Tự động chạy" checked={autoConfirm} onChange={() => setAutoConfirm(!autoConfirm)} disabled={isRunning} />
+                  <Switch label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
+                  <Switch label="Chế độ debug" checked={debugMode} onChange={() => setDebugMode(!debugMode)} disabled={isRunning} />
                 </div>
-                <div className="relative h-[340px] bg-[#060e20] flex items-center justify-center overflow-hidden">
-                  {previewSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={previewSrc} alt="browser preview" className="w-full h-full object-contain" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-3 text-[#3e4850]">
-                      <span className="material-symbols-outlined text-5xl opacity-40">visibility</span>
-                      <span className="font-['Space_Grotesk'] text-[12px] tracking-widest">
-                        {isRunning ? 'ĐANG TẢI HÌNH ẢNH...' : 'CHƯA CÓ HÌNH ẢNH'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="px-4 py-2 bg-[#2d3449] border-t border-[#3e4850]/40 text-[12px] text-[#bec8d2]
-                  font-['Space_Grotesk] truncate">
-                  {currentItem ? `▶ ${currentItem}` : (isRunning ? 'Đang xử lý…' : 'Trình duyệt chạy ẩn (headless) trên máy chủ — đây là hình ảnh trực tiếp.')}
-                </div>
-              </div>
 
-              {/* Terminal console */}
-              <div className="glass-panel rounded-lg overflow-hidden flex flex-col h-[360px] fade-up-2">
-                <div className="flex items-center px-4 py-2.5 bg-[#2d3449] border-b border-[#3e4850]/40 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="w-3 h-3 rounded-full bg-[#ffb4ab]" />
-                    <div className="w-3 h-3 rounded-full bg-[#facc15]" />
-                    <div className="w-3 h-3 rounded-full bg-[#4edea3]" />
-                  </div>
-                  <div className="mx-auto font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2]">
-                    solver_process.log
-                  </div>
-                  <button
-                    onClick={clearLogs}
-                    disabled={isRunning || logs.length === 0}
-                    className="font-['Space_Grotesk'] text-[11px] tracking-wider text-[#3e4850]
-                      hover:text-[#89ceff] disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-2 py-0.5 rounded border border-transparent hover:border-[#89ceff]/30">
-                    CLR
+                <div>
+                  <button type="button" onClick={() => setShowSettings(!showSettings)}
+                    className="flex items-center gap-1 text-[13px] font-medium text-on-surface-variant hover:text-primary transition-colors mb-2">
+                    <span className="material-symbols-outlined text-[18px]">{showSettings ? 'expand_less' : 'expand_more'}</span>
+                    Môn bỏ qua
                   </button>
-                </div>
-                <div className="flex-1 terminal-bg p-4 overflow-y-auto font-['Fira_Code',Consolas,monospace] text-[13px] leading-relaxed">
-                  {logs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 text-[#3e4850]">
-                      <span className="material-symbols-outlined text-5xl opacity-40">terminal</span>
-                      <span className="font-['Space_Grotesk'] text-[12px] tracking-widest">AWAITING COMMAND...</span>
-                    </div>
-                  ) : (
-                    logs.map((log, i) => (
-                      <div key={i} className="flex gap-0 log-entry mb-0.5">
-                        <span className="text-[#3e4850] w-9 shrink-0 text-right pr-3 select-none text-[11px] pt-[1px]">
-                          {i + 1}
-                        </span>
-                        <span className="text-[#89ceff]/60 shrink-0 pr-2">[{log.time}]</span>
-                        <span className={`${getLogStyle(log.message)} break-all`}>{log.message}</span>
-                      </div>
-                    ))
-                  )}
-                  {isRunning && (
-                    <div className="flex items-center mt-2 pl-9">
-                      <span className="w-[7px] h-4 bg-[#89ceff] animate-pulse" />
-                    </div>
-                  )}
-                  <div ref={logEndRef} />
-                </div>
-              </div>
-            </div>
-
-            {/* ── Control Card (right) ──────────────────────────────────── */}
-            <div className="lg:col-span-4 fade-up-3">
-              <div className="glass-panel rounded-lg p-6 flex flex-col h-full relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-[#89ceff]/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-
-                <h2 className="text-[24px] leading-tight font-semibold text-[#89ceff] mb-6">
-                  Execution Protocol
-                </h2>
-
-                <form onSubmit={startAutomation} className="flex flex-col gap-4 flex-1">
-                  <div className="relative">
-                    <input
-                      id="username"
-                      type="text"
-                      placeholder=" "
-                      required
+                  {showSettings && (
+                    <textarea
+                      rows={2}
                       disabled={isRunning}
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      value={blacklistSubjects}
+                      onChange={(e) => setBlacklistSubjects(e.target.value)}
+                      placeholder="thể dục, âm nhạc, mĩ thuật..."
+                      className="w-full rounded-lg border border-outline bg-white px-3 py-2 text-[13px] text-on-surface outline-none resize-none font-terminal
+                        focus:border-primary focus:ring-1 focus:ring-primary disabled:bg-surface-container disabled:cursor-not-allowed"
                     />
-                    <label htmlFor="username" className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
-                      Tài khoản
-                    </label>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type="password"
-                      placeholder=" "
-                      required
-                      disabled={isRunning}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    />
-                    <label htmlFor="password" className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
-                      Mật khẩu
-                    </label>
-                  </div>
-
-                  <div className="pt-2 space-y-3 border-t border-[#3e4850]/50">
-                    <Toggle label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt ẩn trên máy chủ, xem qua ảnh trực tiếp" />
-                    <Toggle label="Tự động chạy" checked={autoConfirm} onChange={() => setAutoConfirm(!autoConfirm)} disabled={isRunning} />
-                    <Toggle label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
-                    <Toggle label="Chế độ debug" checked={debugMode} onChange={() => setDebugMode(!debugMode)} disabled={isRunning} />
-                  </div>
-
+                {stats.total > 0 && (
                   <div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSettings(!showSettings)}
-                      className="flex items-center gap-2 font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] hover:text-[#89ceff] transition-colors mb-2">
-                      <span className="material-symbols-outlined text-[16px]">{showSettings ? 'expand_less' : 'expand_more'}</span>
-                      MÔN BỎ QUA
-                    </button>
-                    {showSettings && (
-                      <textarea
-                        rows={2}
-                        disabled={isRunning}
-                        value={blacklistSubjects}
-                        onChange={(e) => setBlacklistSubjects(e.target.value)}
-                        placeholder="thể dục, âm nhạc, mĩ thuật..."
-                        className="w-full px-3 py-2 text-[13px] text-on-surface bg-[#060e20] border border-[#3e4850] rounded-lg resize-none focus:outline-none focus:border-[#89ceff] disabled:opacity-50 disabled:cursor-not-allowed font-['Fira_Code',monospace] transition-all"
-                      />
-                    )}
-                  </div>
-
-                  {stats.total > 0 && (
-                    <div>
-                      <div className="flex justify-between font-['Space_Grotesk'] text-[12px] tracking-widest font-medium mb-2">
-                        <span className="text-[#89ceff]">Tiến độ</span>
-                        <span className="text-[#89ceff]">{progress}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-[#060e20] rounded-full overflow-hidden shadow-inner">
-                        <div className="h-full rounded-full relative transition-all duration-700" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #89ceff 0%, #4edea3 100%)', boxShadow: '0 0 10px rgba(137,206,255,0.5)' }}>
-                          <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full" />
-                        </div>
-                      </div>
+                    <div className="flex justify-between text-[13px] text-on-surface-variant mb-2">
+                      <span>Tiến độ</span>
+                      <span className="text-primary font-medium">{progress}%</span>
                     </div>
-                  )}
+                    <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                )}
 
-                  <button
-                    type="submit"
-                    disabled={isRunning}
-                    className="mt-auto w-full py-4 rounded-lg btn-cyan font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#00344d] flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-[20px]">{isRunning ? 'hourglass_top' : 'bolt'}</span>
-                    {isRunning ? 'ĐANG CHẠY...' : 'BẮT ĐẦU'}
-                  </button>
-                </form>
-              </div>
+                <button type="submit" disabled={isRunning}
+                  className="mt-auto w-full py-3.5 md-btn text-[14px] font-medium flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined text-[20px]">{isRunning ? 'hourglass_top' : 'bolt'}</span>
+                  {isRunning ? 'Đang chạy…' : 'Bắt đầu'}
+                </button>
+              </form>
             </div>
+          </div>
 
-          </div>{/* end work area grid */}
-        </div>{/* end max-w container */}
+        </div>
       </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="shrink-0 py-3 px-8 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-600 font-['Space_Grotesk'] tracking-widest">
-        <span>© 2026 NILDADEV · Apache-2.0</span>
-        <span>LMS360 AUTO SOLVER v2.0</span>
+      <footer className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between text-[12px] text-on-surface-variant">
+        <span>© 2026 Nildadev · Apache-2.0</span>
+        <span>LMS360 Auto Solver v2.0</span>
       </footer>
 
     </div>
