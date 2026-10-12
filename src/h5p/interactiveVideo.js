@@ -6,7 +6,7 @@
  */
 const { sleep, humanDelay, humanClick } = require('../core/stealth');
 const { extractAnswers } = require('./extract');
-const { pressCheck } = require('./solver');
+const { solveBlanks, solveDragText } = require('./solver');
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -74,7 +74,7 @@ async function extractList(interactions) {
  * cho 0 điểm, text-matching cho đúng). Chuẩn hoá: bỏ tag/entity, gộp khoảng
  * trắng, bỏ dấu, lowercase. Exact trước, contains sau.
  */
-async function answerChoiceInPopup(frame, qc, extracted, logger) {
+async function answerChoiceInPopup(frame, qc, extracted, logger, library) {
   const answers = qc.locator('.h5p-answer');
   const count = await answers.count().catch(() => 0);
   if (!count) return { solved: false, reason: 'no-answer-node', count: 0 };
@@ -104,8 +104,12 @@ async function answerChoiceInPopup(frame, qc, extracted, logger) {
       const w = norm(t);
       if (!w) continue;
       // exact -> contains (cả 2 chiều) để chịu được MathML render khác JSON.
+      // Giới hạn chênh lệch độ dài <=2 để tránh khớp siêu chuỗi ("cat" ~ "category").
       let hit = visible.find(v => v.n === w);
-      if (!hit) hit = visible.find(v => v.n.includes(w) || w.includes(v.n));
+      if (!hit) {
+        const cand = visible.filter(v => Math.abs(v.n.length - w.length) <= 2);
+        hit = cand.find(v => v.n.includes(w) || w.includes(v.n));
+      }
       if (hit) {
         await selectAt(answers, hit.i);
         if (await isSelected(answers.nth(hit.i))) clicked++;
@@ -113,7 +117,10 @@ async function answerChoiceInPopup(frame, qc, extracted, logger) {
     }
   } else {
     // Không có correctTexts -> chọn hết (multi) hoặc cái đầu (single).
-    const multi = /MultiChoice/.test(extracted && extracted.library);
+    // LƯU Ý: `extracted` KHÔNG chứa field `library` (extractAnswers không trả),
+    // nên phải nhận `library` qua tham số — nếu không `multi` luôn false và câu
+    // nhiều đáp án chỉ được click 1 cái.
+    const multi = /MultiChoice|DragQuestion/i.test(library || '');
     const picks = multi ? visible.map(v => v.i) : [visible[0].i];
     for (const i of picks) { await selectAt(answers, i); if (await isSelected(answers.nth(i))) clicked++; }
   }
@@ -175,10 +182,12 @@ async function answerSingleChoiceSet(frame, extracted, logger) {
       for (let i = 0; i < n; i++) { if (texts.includes(altTexts[i])) { target = i; break; } }
       if (target < 0) { for (let i = 0; i < n; i++) { if (texts.some((w) => altTexts[i].includes(w) || w.includes(altTexts[i]))) { target = i; break; } } }
     }
-    if (target < 0) target = 0;
+    // Không khớp được đáp án -> DỪNG (không click bừa cái đầu, vì H5P chấm điểm
+    // ngay khi click -> sẽ ghi nhận câu SAI).
+    if (target < 0) { logger && logger(`  ⚠️ single-choice-set: slide ${slide} không khớp đáp án -> dừng`); break; }
     await humanClick(frame, alts.nth(target)).catch(() => {});
     totalClicks++;
-    await sleep(900);
+    await sleep(500);
     // Nếu H5P báo sai (is-wrong) thử đáp án khác.
     const wrong = await alts.nth(target).evaluate((el) => /h5p-sc-is-wrong/.test(el.className)).catch(() => false);
     if (wrong) {
@@ -272,7 +281,7 @@ async function seekVideo(frame, second) {
 async function finishVideo(frame) {
   const dur = await frame.evaluate(() => { const v = document.querySelector('video'); return v ? v.duration : 0; }).catch(() => 0);
   if (dur) await seekVideo(frame, Math.floor(dur - 3));
-  await sleep(2500);
+  await sleep(1500);
 }
 
 /** Giải Summary trong khung .h5p-summary (qc). */
@@ -286,8 +295,16 @@ async function answerSummaryInPopup(frame, qc, extracted, logger) {
   for (let i = 0; i < n; i++) {
     const row = rows.nth(i);
     const txt = ((await row.textContent().catch(() => '')) || '').trim();
-    const r = data.find(d => norm(d.correctText) === norm(txt) || norm(d.incorrectText) === norm(txt));
-    const isCorrect = r ? (norm(r.correctText) === norm(txt)) : true;
+    // Ưu tiên data-bit trong DOM (H5P ghi sẵn 1=đúng/0=sai — đáng tin hơn so khớp
+    // text). Chỉ khi không có mới dò theo JSON; cuối cùng mới mặc định "đúng".
+    const bit = await row.getAttribute('data-bit').catch(() => null);
+    let isCorrect;
+    if (bit === '1') isCorrect = true;
+    else if (bit === '0') isCorrect = false;
+    else {
+      const r = data.find(d => norm(d.correctText) === norm(txt) || norm(d.incorrectText) === norm(txt));
+      isCorrect = r ? (norm(r.correctText) === norm(txt)) : true;
+    }
     // H5P Summary toggle 3 trạng thái: unselected -> correct(đúng) -> incorrect(sai) -> unselected.
     // Muốn đúng: click 1 lần. Muốn sai: click 2 lần. Bắt đầu từ unselected.
     await humanClick(frame, row);
@@ -310,7 +327,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   const interactions = ri.items || ri;
   const seekLocked = !!(ri && ri.seekLocked);
   if (seekLocked) logger('  (i) Bai KHOA tua (preventSkipping) -> play 1x xuyen suot, khong seek');
-  if (!interactions.length) { logger('IV: không có interactions'); return { solved: 0, total: 0 }; }
+  if (!interactions.length) { logger('IV: không có interactions (video chỉ cần xem)'); return { solved: 0, total: 0, noQuestions: true }; }
   const list = await extractList(interactions);
   logger(`IV: ${list.length} interactions [${list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' ')}]`);
 
@@ -468,7 +485,9 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     if (!isYoutube && stop != null) {
       await frame.evaluate((s) => {
         const v = document.querySelector('video');
-        if (v) { try { v.muted = true; v.currentTime = Math.max(0, s - 0.4); v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
+        // Đã seek sát mốc (s-0.4) -> phát 1x là đủ để H5P kịp trigger; 0.5x chỉ
+        // làm chậm gấp đôi mà không thêm lợi ích.
+        if (v) { try { v.muted = true; v.currentTime = Math.max(0, s - 0.4); v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} }
       }, stop);
     }
     // (1) Nút tương tác TRÊN VIDEO (blanks/other) — chỉ hiện quanh mốc.
@@ -592,13 +611,13 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         }
       }
       if (opened) logger(`  ▶ bấm nút tóm tắt ${opened.sel || opened.title || ''}`);
-      snap = await waitDialog(20000);
+      snap = await waitDialog(12000);
       // Vẫn chưa mở -> thử bấm nút tóm tắt đang hiển thị lần cuối.
       if (!snap || !snap.hasQ) {
         const endBtn2 = frame.locator('.h5p-interaction-button:visible, .h5p-end-summary:visible, .h5p-summary-interaction:visible').first();
         if (await endBtn2.count().catch(() => 0)) {
           await endBtn2.click({ timeout: 2500 }).catch(() => {});
-          snap = await waitDialog(10000);
+          snap = await waitDialog(8000);
         }
       }
       if (!snap || !snap.hasQ) { await dumpSummaryDom('sum-fail'); logger('  ⚠ tóm tắt không hiện dialog -> bỏ qua'); continue; }
@@ -607,7 +626,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       // pause ở mốc và mở dialog. Chỉ chờ dialog hiện theo thời gian phát thực
       // (dùng toàn bộ thời gian còn lại trong deadline). Áp dụng cho CẢ YouTube
       // và native (đã khởi động play ở trên).
-      const budget = Math.min(120000, Math.max(15000, deadline - Date.now()));
+      const budget = Math.min(60000, Math.max(15000, deadline - Date.now()));
       snap = await waitDialog(budget);
       if (!snap || !snap.hasQ) {
         logger(`  ⚠ (play-through) không hiện dialog trong ${Math.round(budget / 1000)}s -> bỏ qua mốc ${stop}s`);
@@ -620,7 +639,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       const mk = await clickInteractionButton(stop, si);
       if (mk) logger(`  ▶ bấm ${mk.sel || mk.title || 'marker'} (mốc ${stop}s)`);
       else logger(`  ⚠ không thấy nút tương tác cho mốc ${stop}s`);
-      snap = await waitDialog(15000);
+      snap = await waitDialog(10000);
       if (!snap || !snap.hasQ) {
         if (!dumpedStop) { dumpedStop = true; await dumpSummaryDom('stop-fail'); }
         logger(`  ⚠ mốc ${stop}s không hiện dialog -> bỏ qua`);
@@ -634,8 +653,14 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     await sleep(400);
 
     // Đọc LẠI đáp án tại thời điểm dialog hiện (lazy-load action.params).
-    const liveRaw = await readInteractions(frame, jsonOverride);
-    const liveList = await extractList(liveRaw.items || liveRaw);
+    // Với jsonOverride (IV lồng trong Book/CP) params đã có sẵn -> dùng luôn `list`,
+    // khỏi tốn thêm 1 vòng evaluate mỗi mốc.
+    let liveList;
+    if (jsonOverride) { liveList = list; }
+    else {
+      const liveRaw = await readInteractions(frame, jsonOverride);
+      liveList = await extractList(liveRaw.items || liveRaw);
+    }
     // Với play-through (seekLocked) ta KHÔNG tua tới mốc cụ thể, nên xác định mốc
     // đang active theo thời gian phát thực (snap.t). Với tua bình thường, dialog
     // hiện đúng mốc đã seek -> dùng luôn stop.
@@ -650,7 +675,11 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       ? liveList.filter(l => l.isSummary)
       : liveList.filter(l => !l.isSummary && l.from === activeFrom);
     if (!group.length) {
-      logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${activeFrom}s`} chưa load kịp đáp án -> tua qua`);
+      // Dialog đã mở nhưng chưa đọc được đáp án (lazy-load/chậm). Đóng dialog để
+      // video không bị kẹt (trước đây chỉ 'continue' -> dialog treo, video đứng).
+      logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${activeFrom}s`} chưa load kịp đáp án -> đóng dialog cho video chạy tiếp`);
+      await pressContinue(frame, logger).catch(() => {});
+      await sleep(400);
       continue;
     }
     logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${activeFrom}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
@@ -678,7 +707,9 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         await sleep(400);
       }
       // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
-      const choices = group.filter(g => g.kind === 'choice' || g.kind === 'blanks');
+      // Chỉ lấy kind 'choice' (blanks/dragtext xử lý riêng ở (2b-2)) để index
+      // không lệch khi dialog trộn nhiều loại.
+      const choices = group.filter(g => g.kind === 'choice');
       const qcs = frame.locator('.h5p-question:visible');
       const nQc = await qcs.count().catch(() => 0);
       let mcIndex = 0;
@@ -686,13 +717,25 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         const qc = qcs.nth(q);
         const nAns = await qc.locator('.h5p-answer').count().catch(() => 0);
         if (nAns) {
-          const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger);
+          const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger, choices[mcIndex].library);
           mcIndex++;
           // Bấm Kiểm tra NGAY trong container này (nút enabled sau khi có lựa chọn).
           if (r.solved) await pressCheckIn(frame, qc, logger);
         }
       }
-      await sleep(500);
+      await sleep(300);
+
+      // (2b-2) Blanks / DragText lồng trong IV: KHÔNG có .h5p-answer nên (2b) bỏ qua.
+      // Phải điền ô trống (input) hoặc kéo-thả từ; nếu không H5P không ghi nhận câu trả lời.
+      const blanksEls = group.filter(g => g.kind === 'blanks');
+      if (blanksEls.length && !(await frame.locator('.h5p-mark-the-words:visible').count().catch(() => 0))) {
+        const b = blanksEls[0];
+        const box = frame.locator('.h5p-blanks:visible, .h5p-drag-text:visible').first();
+        if (await box.count().catch(() => 0)) {
+          const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
+          if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
+        }
+      }
 
       // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
       //      nhánh (2b) bỏ qua. Phải bấm từng từ `span[role=option]` khớp đáp án
@@ -704,7 +747,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
         if (rMtw.solved) await pressCheckIn(frame, mtwBox, logger);
       }
-      await sleep(500);
+      await sleep(300);
 
       // Bấm nốt các nút Kiểm tra/Gửi còn đang visible (fallback, vd summary-submit).
       const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
@@ -727,12 +770,15 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
       }).catch(() => ({}));
       logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
-      solvedCount++;
+      // CHỈ tính "đã giải" khi KHÔNG có câu nào sai. Trước đây tăng vô điều kiện
+      // nên 1 câu (dù sai/bỏ trống) là cả bài được tính xong.
+      if (fb.bad > 0) logger(`  ⚠️ mốc ${stop}s có ${fb.bad} câu SAI — không tính là đã giải`);
+      else solvedCount++;
 
       // Bấm "Tiếp tục/Continue" để H5P submit câu trả lời (xAPI 'answered' chỉ
       // fire sau khi đóng dialog qua nút này, KHÔNG fire khi seek đi đột ngột).
       await pressContinue(frame, logger);
-      await sleep(600);
+      await sleep(400);
     }
   }
   await finishVideo(frame);

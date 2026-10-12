@@ -253,7 +253,10 @@ async function solveInteractiveBook(page, frame, model, logger) {
   await openInteractiveBook(frame, logger);
   const st = await ibPageState(frame);
   const total = (st && st.total) || (model.pages.length + 1);
-  logger(`IB: ${model.pages.length} chương, điều hướng ${total} trang`);
+  // Số câu hỏi thật trong json — nếu = 0 thì sách chỉ có text/media (xem là xong).
+  // (Mirror CP: thiếu cờ này khiến IB "chỉ đọc" bị coi là chưa hoàn thành.)
+  const totalQ = (model.pages || []).reduce((n, pg) => n + (((pg && pg.elements) || []).filter((e) => QUESTION_KINDS.has(e.kind)).length), 0);
+  logger(`IB: ${model.pages.length} chương, điều hướng ${total} trang${totalQ === 0 ? ' — không có câu hỏi (chỉ cần xem)' : ''}`);
   let solvedPages = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
@@ -272,7 +275,7 @@ async function solveInteractiveBook(page, frame, model, logger) {
   await ibSubmit(frame, logger);
   const finalScore = await readFinalScore(frame);
   logger(`IB done: ${solvedPages}/${total} trang đúng | final=${JSON.stringify(finalScore)}`);
-  return { solved: solvedPages, slides: total, details, finalScore, kind: model.kind };
+  return { solved: solvedPages, slides: total, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
 }
 
 /**
