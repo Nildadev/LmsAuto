@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🎓 LMS360 Auto Solver
+# LMS360 Auto Solver
 
-**Tự động hóa việc học trên [lms360.vn](https://lms360.vn) — Đăng nhập SSO, quét khóa học và giải bài tập H5P tương tác hoàn toàn tự động.**
+**Tự động học trên [lms360.vn](https://lms360.vn) — đăng nhập, làm bài và hoàn thành khóa học thay bạn, hoàn toàn tự động.**
 
 [![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Playwright](https://img.shields.io/badge/Playwright-1.59+-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
@@ -15,29 +15,36 @@
 
 ## ✨ Tính năng
 
-- 🔐 **Đăng nhập SSO tự động** — Hỗ trợ hệ thống SSO của Sở Giáo dục & Đào tạo TP.HCM (`api.hcm.edu.vn`)
-- 📋 **Quét khóa học thông minh** — Lọc và thu thập chỉ các khóa học **Chưa học** & **Đang học**
-- 🛡️ **Bỏ qua popup** — Tự động đóng popup quét khuôn mặt (Face ID) khi xuất hiện
-- 🤖 **Giải bài tập H5P** — Hỗ trợ 3 loại bài tập:
-  - ✅ Trắc nghiệm nhiều lựa chọn (Multi-choice)
-  - ✅ Trắc nghiệm một lựa chọn (Single-choice)
-  - ✅ Đúng / Sai (True/False)
-- 🎬 **Hỗ trợ Video tương tác** — Tự động xử lý các điểm tương tác trên video H5P
-- 🔄 **Xác minh thông tin đăng nhập** — Phát hiện tài khoản sai và yêu cầu nhập lại ngay lập tức
-- 💻 **CLI tương tác** — Giao diện dòng lệnh đẹp với input ẩn mật khẩu và xác nhận trực quan
+- 🔐 **Đăng nhập tự động** — Dùng tài khoản nhà trường, lấy phiên đăng nhập rồi tự động
+  điền vào trình duyệt, không cần bạn tự đăng nhập bằng tay
+- 📋 **Tự quét bài cần làm** — Lấy danh sách bài được giao, lọc bớt môn phụ (thể dục,
+  âm nhạc…) và các bài tự luận không làm được
+- 📝 **Làm đủ các dạng bài** trên trang:
+  - ✅ Trắc nghiệm một / nhiều đáp án
+  - ✅ Đúng / Sai
+  - ✅ Điền từ, kéo‑thả, chọn từ
+  - ✅ Tóm tắt, bộ câu hỏi
+  - ✅ Bài học dạng sách / slide
+  - ✅ Video bài giảng có câu hỏi xen giữa (tự dừng, trả lời, tiếp tục)
+- 📄 **Tự đánh dấu hoàn thành tài liệu đính kèm** — file pptx / pdf / doc / mp4… chỉ cần
+  "xem" là xong, không cần mở từng cái
+- 🎓 **Làm lại các bài còn dở** — quét toàn bộ bài chưa xong trong khóa và hoàn thành nốt
+- 🛡️ **Tự bỏ qua popup** — Tự động đóng cửa sổ nhận diện khuôn mặt mỗi khi hiện ra
+- 💻 **Hai cách dùng** — Giao diện dòng lệnh (CLI) hoặc Giao diện web có **xem trước
+  trình duyệt trực tiếp** (trình duyệt chạy ẩn trên máy chủ, web chỉ hiển thị hình ảnh)
 
 ---
 
 ## 📁 Cấu trúc dự án
 
 ```
-LMSAutoNew/
-├── lib/
-│   └── automation.js      # Logic tự động hóa cốt lõi (Playwright)
+LmsAuto/
 ├── scripts/
-│   └── cli.js             # Giao diện dòng lệnh (CLI)
-├── app/
-│   └── page.js            # Entry point Next.js (không bắt buộc)
+│   └── cli.js          # Giao diện dòng lệnh (CLI)
+├── src/
+│   ├── core/           # Lõi: đăng nhập, quét bài, chạy luồng chính
+│   └── h5p/            # Các bộ giải bài tập, video, sách, tài liệu
+├── app/                # Giao diện web (Next.js): page.js + api/solve
 ├── package.json
 ├── LICENSE
 └── README.md
@@ -47,22 +54,22 @@ LMSAutoNew/
 
 ## 🚀 Cài đặt
 
-### Yêu cầu hệ thống
+### Yêu cầu
 
-- [Node.js](https://nodejs.org) **v22+**
-- npm **v9+**
+- [Node.js](https://nodejs.org) **22 trở lên**
+- npm **9 trở lên**
 
-### Các bước cài đặt
+### Các bước
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/yourusername/lms360-auto-solver.git
-cd lms360-auto-solver
+git clone https://github.com/Nildadev/LmsAuto
+cd LmsAuto
 
-# 2. Cài đặt dependencies
+# 2. Cài đặt thư viện
 npm install
 
-# 3. Cài đặt trình duyệt Playwright (chỉ cần làm 1 lần)
+# 3. Cài trình duyệt chromium (chỉ làm 1 lần)
 npx playwright install chromium
 ```
 
@@ -70,124 +77,65 @@ npx playwright install chromium
 
 ## 🖥️ Sử dụng
 
+### Cách 1 — Dòng lệnh (CLI)
+
 ```bash
 npm run auto
 ```
 
-Sau khi chạy, giao diện CLI sẽ xuất hiện:
-
-### 📄 Chế độ hoàn thành FILE tài liệu (pptx/pdf/doc/mp4...)
-
-Bài "TÀI LIỆU ĐÍNH KÈM" dạng file **không phải H5P** — trên web chỉ cần bấm nút
-mắt (xem) là hoàn thành. Chế độ này quét `learn_status` của **toàn bộ khóa của lớp**,
-phân loại phần file (`type=1` qua `/h5p/contents/detail`) rồi đánh dấu hoàn thành
-qua đúng 2 API mà web gọi khi bấm nút mắt (xem `src/h5p/doc.js`):
+Chương trình sẽ hỏi tài khoản và mật khẩu (mật khẩu được ẩn), sau đó tự chạy.
+Các tuỳ chọn thêm:
 
 ```bash
-# Xem trước danh sách (không đánh dấu gì)
-node scripts/cli.js --complete-files --dry-run
-
-# Đánh dấu hoàn thành toàn bộ file (chỉ gọi API, KHÔNG mở browser)
-node scripts/cli.js --complete-files
+npm run auto -- --dry-run     # Chỉ liệt kê bài, không làm
+npm run auto -- --limit=5     # Chỉ làm 5 bài đầu
+npm run auto -- --all         # Không lọc bớt môn phụ
+npm run auto -- --headless    # Chạy ẩn trình duyệt
 ```
 
-Phần H5P được bỏ qua (`skippedH5p`) để solver H5P xử lý riêng.
+### Cách 2 — Giao diện web
 
-### 🧩 Chế độ giải TOÀN BỘ phần H5P còn nợ
-
-`learn_status` của mỗi khóa liệt kê các phần H5P **chưa hoàn thành** (status 0/2) —
-kể cả bài không có trong "việc cần làm". Chế độ này mở từng phần, giải bằng solver
-(chọn đúng đáp án), rồi **đánh dấu hoàn thành server-side** (player H5P không tự
-gọi `learn_status status=3` khi solver bấm "Tóm tắt & gửi" — đã verify):
-
-```bash
-node scripts/cli.js --complete-h5p            # giải + đánh dấu mọi phần H5P còn nợ
-node scripts/cli.js --complete-h5p --dry-run  # chỉ liệt kê
-```
-
-Lưu ý: bài H5P dùng video **YouTube** nhúng (cross-origin iframe) không thể tua/tương
-tác marker trong tự động hoá — solver bỏ qua an toàn và KHÔNG đánh dấu (không gian lận).
-
-```
-=================================================
-   LMS360 AUTO SOLVER Made With ❤️ By Nildadev
-=================================================
-? 👤 Tài khoản: › 12345678910
-? 🔑 Mật khẩu: › ************
-
-🚀 Bắt đầu quá trình tự động hóa...
-------------------------------------
-✅ Login successful!
-📚 Navigating to course list...
-
-📊 BÁO CÁO QUÉT KHÓA HỌC:
-- Tổng số khóa học tìm thấy: 3
-  1. Văn 8 - Tuần 13
-  2. Toán 8 - Tuần 12
-  3. Anh 8 - Tuần 11
-
-? ❓ Bạn có chắc chắn muốn bắt đầu học hết 3 khóa học này không? › Yes
-```
 ```bash
 npm run dev
 ```
-Sau khi chạy, local server sẽ được mở lên từ đó mở giao diện web
+
+Mở trình duyệt vào địa chỉ hiện ra (thường là http://localhost:3000). Nhập tài
+khoản, mật khẩu, bấm **START AUTOMATION**. Bạn sẽ thấy:
+
+- **Bảng điều khiển** hiện số bài tổng / đã xong / lỗi / bỏ qua
+- **Hình ảnh trực tiếp** của trình duyệt đang chạy (trình duyệt chạy ẩn trên máy
+  chủ, web chỉ hiển thị ảnh xem trước — không bật cửa sổ thật)
+- **Nhật ký** từng bước đang làm
+
+> Trình duyệt luôn chạy ở chế độ ẩn (headless) trên máy chủ. Nếu bạn mở web trên
+> chính máy chủ và muốn thấy cửa sổ thật, tắt "Headless Mode" trong giao diện.
+
+### Hoàn thành tài liệu / làm lại bài dở (CLI)
+
+```bash
+npm run auto -- --complete-files   # Đánh dấu hoàn thành mọi file tài liệu đính kèm
+npm run auto -- --complete-h5p     # Làm lại & hoàn thành mọi bài tập còn dở
+```
 
 ---
 
 ## ⚙️ Cấu hình
 
-Bạn có thể chỉnh sửa các tham số trong `lib/automation.js`:
-
-| Tham số | Mặc định | Mô tả |
-|---------|----------|-------|
-| `headless` | `false` | Chạy trình duyệt ẩn (`true`) hoặc hiện (`false`) |
-| `timeout` SSO | `30000ms` | Thời gian chờ redirect về SSO |
-| `timeout` redirect | `60000ms` | Thời gian chờ redirect về lms360.vn |
-
-Để chạy ở chế độ ẩn (không hiện trình duyệt), sửa dòng 4 trong `lib/automation.js`:
-
-```js
-// Đổi từ:
-const browser = await chromium.launch({ headless: false });
-// Sang:
-const browser = await chromium.launch({ headless: true });
-```
-
----
-
-## 🧠 Cách hoạt động
-
-```
-1. Mở trình duyệt Chromium
-       │
-2. Điều hướng đến lms360.vn → Chọn vai trò "Học sinh"
-       │
-3. Redirect đến SSO Sở GD&ĐT TP.HCM → Nhập tài khoản/mật khẩu
-       │
-       ├─ Sai thông tin → Thông báo lỗi → Nhập lại
-       └─ Đúng → Redirect về lms360.vn
-       │
-4. Điều hướng đến Danh sách Khóa học
-       │
-5. Áp dụng lần lượt bộ lọc "Chưa học" và "Đang học" → Thu thập tiêu đề
-       │
-6. Xác nhận từ người dùng
-       │
-7. Với mỗi khóa học:
-   ├─ Mở khóa học → Chuyển tab "CHỦ ĐỀ HỌC TẬP"
-   ├─ Tìm bài tập qua biểu tượng PlayArrow
-   └─ Với mỗi bài tập: Click → Giải H5P → Nộp bài → Quay lại
-```
+- **Chế độ ẩn / hiện trình duyệt**: bật/tắt "Headless Mode" trên web, hoặc dùng
+  cờ `--headless` với CLI. Mặc định trình duyệt chạy ẩn.
+- **Môn bỏ qua**: trên web nhập danh sách môn cách nhau bởi dấu phẩy (vd:
+  `thể dục, âm nhạc, mĩ thuật`); với CLI dùng cờ `--all` để không lọc.
 
 ---
 
 ## ⚠️ Lưu ý & Giới hạn
 
-- Công cụ được xây dựng cho mục đích **cá nhân và học thuật** và tác giả không chịu trách nhiệm cho bất kỳ hành vi sử dụng sai mục đích nào của phần mềm này.
-- Không lưu trữ thông tin đăng nhập. Mọi credential chỉ tồn tại trong phiên chạy hiện tại.
-- Hiệu quả phụ thuộc vào cấu trúc HTML của `lms360.vn`. Nếu trang web cập nhật giao diện, có thể cần điều chỉnh các CSS selector.
-- Popup **Face ID** sẽ bị tự động bỏ qua (bấm "Để sau") mỗi khi xuất hiện.
+- Công cụ phục vụ **mục đích cá nhân, học tập**. Tác giả không chịu trách nhiệm với
+  các cách sử dụng sai mục đích.
+- Không lưu tài khoản: thông tin chỉ tồn tại trong lúc chương trình chạy.
+- Hoạt động phụ thuộc vào giao diện của lms360.vn. Nếu trang thay đổi, có thể cần
+  chỉnh lại một số thao tác.
+- Popup nhận diện khuôn mặt sẽ tự động bỏ qua (bấm "Để sau").
 
 ---
 
@@ -205,25 +153,10 @@ Pull request và issue đều được chào đón! Trước khi đóng góp, vu
 
 ## 📄 Giấy phép
 
-Dự án được phân phối theo giấy phép **Apache License 2.0**. Điều này có nghĩa là bạn có quyền sử dụng, sửa đổi và phân phối mã nguồn, nhưng **bắt buộc phải ghi nguồn (attribution)** và giữ nguyên các thông báo bản quyền của tác giả gốc.
+Dự án được phân phối theo giấy phép **Apache License 2.0** — bạn được dùng, sửa và
+chia sẻ mã nguồn, nhưng **phải ghi nguồn** và giữ nguyên thông báo bản quyền gốc.
 
 Xem chi tiết tại [LICENSE](LICENSE).
-
-```text
-Copyright 2026 Nildadev
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
 
 ---
 
