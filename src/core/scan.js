@@ -74,9 +74,9 @@ function normalizeItem(it) {
   };
 }
 
-/** URL xem bài. */
+/** URL xem bài. Nhận item đã normalize (.p/.c/.cs) hoặc item thô (raw). */
 function videoUrl(item) {
-  const n = item.raw ? item : normalizeItem(item);
+  const n = (item.raw || item.p || item.cs) ? item : normalizeItem(item);
   return `${WEB_BASE}/xem-video?p=${n.p}&c=${n.c}&cs=${n.cs}`;
 }
 
