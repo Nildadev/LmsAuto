@@ -115,7 +115,8 @@ export default function Home() {
   const [theme, setTheme]                   = useState('system'); // system | light | dark
   const [scanClass, setScanClass]           = useState(true);     // quét cả khóa học của lớp
   const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
-  const logEndRef     = useRef(null);
+  const logBoxRef     = useRef(null);
+  const autoScrollRef = useRef(true);
   const previewImgRef = useRef(null);
   const loadedRef     = useRef(false);
 
@@ -163,10 +164,18 @@ export default function Home() {
 
   const cycleTheme = () => setTheme((t) => (t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system'));
 
-  /* Auto-scroll log */
+  /* Auto-scroll log — CHỈ cuộn trong khung nhật ký, không cuộn cả trang.
+     Chỉ tự cuộn khi người dùng đang ở gần cuối; nếu họ cuộn lên đọc thì giữ nguyên. */
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const box = logBoxRef.current;
+    if (box && autoScrollRef.current) box.scrollTop = box.scrollHeight;
   }, [logs]);
+
+  const onLogScroll = () => {
+    const box = logBoxRef.current;
+    if (!box) return;
+    autoScrollRef.current = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  };
 
   /* Parse log -> stats (khớp engine mới src/core/flow.js) */
   const addLog = (message) => {
@@ -346,7 +355,8 @@ export default function Home() {
                   Xoá
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto bg-surface-container-low p-4 font-terminal text-terminal">
+              <div ref={logBoxRef} onScroll={onLogScroll}
+                className="flex-1 overflow-y-auto bg-surface-container-low p-4 font-terminal text-terminal">
                 {logs.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full gap-2 text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl opacity-50">terminal</span>
@@ -362,7 +372,6 @@ export default function Home() {
                   ))
                 )}
                 {isRunning && <div className="pl-10 pt-1"><span className="inline-block w-[7px] h-4 bg-primary animate-pulse" /></div>}
-                <div ref={logEndRef} />
               </div>
             </div>
           </div>
