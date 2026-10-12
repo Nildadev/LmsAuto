@@ -195,6 +195,40 @@ async function answerSingleChoiceSet(frame, extracted, logger) {
   return { solved: totalClicks > 0, clicked: totalClicks };
 }
 
+/**
+ * Giải MarkTheWords (IV lồng): mỗi từ là `span[role="option"]` bên trong
+ * `.h5p-word-selectable-words`; click để bật/tắt `aria-selected`. Đáp án đúng
+ * lấy từ extractBlanks (`params.text` có các từ bọc `*...*`).
+ *
+ * QUAN TRỌNG: MarkTheWords KHÔNG có `.h5p-answer` (khác MultiChoice) nên nhánh
+ * choice cũ bỏ qua hoàn toàn -> H5P không ghi nhận câu trả lời -> nội dung
+ * không bao giờ "hoàn thành" (bài video + tài liệu kẹt 50%).
+ */
+async function answerMarkTheWords(frame, extracted, logger) {
+  const norm = (s) => String(s || '')
+    .replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ')
+    .replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+  const words = frame.locator('.h5p-word-selectable-words span[role="option"]');
+  const n = await words.count().catch(() => 0);
+  if (!n) return { solved: false, reason: 'no-words', count: 0 };
+  const want = (((extracted && extracted.answers) || [])).map(norm).filter(Boolean);
+  let clicked = 0;
+  for (let i = 0; i < n; i++) {
+    const loc = words.nth(i);
+    const txt = norm(await loc.innerText().catch(() => ''));
+    if (!txt) continue;
+    const shouldMark = want.some((w) => w === txt || txt.includes(w) || w.includes(txt));
+    const selected = (await loc.getAttribute('aria-selected').catch(() => null)) === 'true';
+    if (shouldMark !== selected) {
+      await humanClick(frame, loc).catch(() => {});
+      await sleep(140);
+      clicked++;
+    }
+  }
+  logger && logger(`    mark-the-words marked ${clicked}/${n} want=${JSON.stringify(want)}`);
+  return { solved: clicked > 0 || want.length > 0, clicked, total: n };
+}
+
 /** Đáp án đã được chọn chưa (aria-checked=true hoặc class h5p-selected). */
 async function isSelected(ans) {
   return ans.evaluate((el) =>
@@ -660,6 +694,18 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       }
       await sleep(500);
 
+      // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
+      //      nhánh (2b) bỏ qua. Phải bấm từng từ `span[role=option]` khớp đáp án
+      //      rồi Kiểm tra — nếu không H5P không ghi nhận câu trả lời và nội dung
+      //      không bao giờ hoàn thành (bài video + tài liệu kẹt 50%).
+      const mtwBox = frame.locator('.h5p-mark-the-words:visible').first();
+      if (await mtwBox.count().catch(() => 0)) {
+        const mtwEx = (group.find(g => g.kind === 'blanks') || {}).extracted;
+        const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
+        if (rMtw.solved) await pressCheckIn(frame, mtwBox, logger);
+      }
+      await sleep(500);
+
       // Bấm nốt các nút Kiểm tra/Gửi còn đang visible (fallback, vd summary-submit).
       const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
       const nChk = await checks.count().catch(() => 0);
@@ -716,4 +762,4 @@ async function pressContinue(frame, logger) {
   return false;
 }
 
-module.exports = { solveVideo, readInteractions, extractList, answerChoiceInPopup, answerSummaryInPopup, pressContinue, seekVideo, finishVideo, kindOf, log };
+module.exports = { solveVideo, readInteractions, extractList, answerChoiceInPopup, answerSummaryInPopup, answerMarkTheWords, pressContinue, seekVideo, finishVideo, kindOf, log };
