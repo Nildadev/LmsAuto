@@ -55,7 +55,6 @@ async function solveChoice(frame, extracted, logger) {
   if (!visible.length) return { solved: false, reason: 'no-visible-answer' };
 
   const want = (extracted.data && extracted.data.correctTexts || []).map(normalizeText);
-  const wantMulti = /MultiChoice|Multi/.test(extracted.library || '');
 
   const toClick = [];
   if (want.length) {
@@ -72,8 +71,10 @@ async function solveChoice(frame, extracted, logger) {
       if (found) toClick.push(found.i);
     });
   } else {
-    // Không có đáp án -> chọn hết (multi) hoặc cái đầu visible (single)
-    toClick.push(...(wantMulti ? visible.map(v => v.i) : [visible[0].i]));
+    // Không trích được đáp án -> KHÔNG đoán (trước đây click hết/cái đầu rồi báo
+    // solved -> bài được tính xong dù trả lời sai).
+    logger && logger(`choice: không có đáp án trích được -> bỏ qua (visible=${JSON.stringify(visible.map(v => v.t))})`);
+    return { solved: false, reason: 'no-answers', visible: visible.map(v => v.t) };
   }
 
   const clicked = [];
@@ -101,8 +102,13 @@ async function solveBlanks(frame, extracted, logger) {
     return { solved: false, reason: 'no-visible-input' };
   }
   const answers = (extracted.data && extracted.data.answers) || [];
+  if (!answers.length) {
+    // Không có đáp án -> KHÔNG điền bừa 'a' rồi báo solved.
+    logger && logger('blanks: không có đáp án trích được -> bỏ qua');
+    return { solved: false, reason: 'no-answers', count };
+  }
   for (let i = 0; i < count; i++) {
-    const val = answers[i] !== undefined ? answers[i] : (answers[0] || 'a');
+    const val = answers[i] !== undefined ? answers[i] : answers[0];
     const inp = inputs.nth(i);
     await inp.click({ timeout: 4000 });
     await sleep(60);
@@ -263,10 +269,9 @@ async function solveSummary(frame, extracted, logger) {
     }
     logger && logger(`summary: clicked ${clicked} đáp án đúng (data-bit=1) / ${count}`);
   } else {
-    // Fallback: click hết rồi Check, giữ correct bỏ wrong (thực hiện ở ngoài).
-    for (let i = 0; i < count; i++) { await humanClick(frame, claims.nth(i)); await humanDelay(); }
-    clicked = count;
-    logger && logger(`summary: clicked all ${count} (fallback, no data-bit)`);
+    // Không có data-bit -> KHÔNG đoán (click hết sẽ bấm cả đáp án SAI rồi báo solved).
+    logger && logger('summary: không có data-bit -> bỏ qua (không đoán)');
+    return { solved: false, reason: 'no-data-bit', total: count };
   }
   return { solved: clicked > 0, clicked, total: count };
 }

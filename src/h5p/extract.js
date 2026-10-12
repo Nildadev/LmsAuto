@@ -70,7 +70,7 @@ function stripHtml(s) {
 function extractChoice(params) {
   const answers = params.answers || [];
   const correctIdx = [];
-  answers.forEach((a, i) => { if (a && a.correct) correctIdx.push(i); });
+  answers.forEach((a, i) => { if (isCorrectFlag(a)) correctIdx.push(i); });
   return {
     kind: 'choice',
     options: answers.map(a => stripHtml(a && a.text)),
@@ -99,7 +99,11 @@ function extractTrueFalse(params) {
 // ── Blanks / DragText / MarkTheWords ─────────────────────────────────────
 function extractStarAnswers(text) {
   const matches = []; const re = /\*([^*]+)\*/g; let m;
-  while ((m = re.exec(text)) !== null) matches.push(m[1].trim());
+  while ((m = re.exec(text)) !== null) {
+    // H5P cho phép nhiều đáp án trong 1 cặp dấu sao, ngăn bởi '/'. Lấy đáp án đầu
+    // (downstream so khớp theo text, không xử lý được mảng).
+    matches.push(m[1].split('/')[0].trim());
+  }
   return matches;
 }
 function extractBlanks(params) {
@@ -125,8 +129,10 @@ function extractDragQuestion(params) {
   const task = (params.question || {}).task || {};
   const norm = (arr) => {
     if (!arr) return [];
-    if (typeof arr === 'string') { const p = parseJson(arr); return Array.isArray(p) ? p : []; }
+    if (typeof arr === 'string') { const p = parseJson(arr); return Array.isArray(p) ? p : (p && typeof p === 'object' ? Object.values(p) : []); }
     if (Array.isArray(arr)) return arr.map(e => parseJson(e) || e);
+    // H5P hay serialize elements/dropZones thành object map {0:{...},1:{...}}.
+    if (typeof arr === 'object') return Object.values(arr).map(e => parseJson(e) || e);
     return [];
   };
   const els = norm(task.elements);
@@ -165,19 +171,22 @@ function extractSpeakGuess(params) {
 }
 
 // ── SingleChoiceSet (params.choices[].answers[].correct) ─────────────────
+/** `correct` có thể là boolean true hoặc chuỗi "true"; "false" KHÔNG được coi là đúng. */
+const isCorrectFlag = (a) => !!a && (a.correct === true || a.correct === 'true');
+
 function extractSingleChoiceSet(params) {
   const choices = params.choices || [];
   const out = choices.map((ch) => {
     const answers = ch.answers || ch.alternatives || [];
     return {
       question: stripHtml(ch.question || ''),
-      answers: answers.map((a) => ({ text: stripHtml(a && a.text), correct: !!(a && a.correct) })),
+      answers: answers.map((a) => ({ text: stripHtml(a && a.text), correct: isCorrectFlag(a) })),
     };
   });
   const correctTexts = [];
   out.forEach((ch) => ch.answers.forEach((a) => { if (a.correct) correctTexts.push(a.text); }));
-  // Fallback: nếu vì lý do nào đó không có correct, lấy text các đáp án.
-  if (!correctTexts.length) out.forEach((ch) => ch.answers.slice(0, 1).forEach((a) => correctTexts.push(a.text)));
+  // KHÔNG bịa đáp án khi không có correct: để trống -> solver sẽ dừng thay vì
+  // click bừa (H5P chấm điểm ngay khi click nên click bừa = ghi nhận câu SAI).
   return { kind: 'choice', choices: out, correctTexts, options: out.flatMap((ch) => ch.answers.map((a) => a.text)) };
 }
 

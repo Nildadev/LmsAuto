@@ -58,8 +58,13 @@ async function markComplete(token, h5pContentId, h5pCourseId, logger, opts = {})
       signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
     });
     const text = await res.text().catch(() => '');
-    logger && logger(`  ✅ mark_complete(status=3) -> ${res.status} ${text.slice(0, 60)}`);
-    return { ok: res.ok, status: res.status, body: text };
+    // Server có thể trả HTTP 200 kèm body { errors:[...] } (vd access denied /
+    // invalid_parameter) — KHÔNG được coi là thành công chỉ vì res.ok.
+    let parsed = null; try { parsed = JSON.parse(text); } catch (_) {}
+    const errs = parsed && Array.isArray(parsed.errors) ? parsed.errors : null;
+    const ok = res.ok && !(errs && errs.length);
+    logger && logger(`  ✅ mark_complete(status=3) -> ${res.status}${errs && errs.length ? ' errors:' + JSON.stringify(errs).slice(0, 80) : ''} ${text.slice(0, 60)}`);
+    return { ok, status: res.status, body: text, errors: errs || undefined };
   } catch (e) {
     logger && logger(`  ✅ mark_complete lỗi: ${String(e && e.message).slice(0, 80)}`);
     return { ok: false, status: 0, body: String(e && e.message || e) };
@@ -108,16 +113,21 @@ async function solveDoc(item, token, logger, opts = {}) {
   const v = opts.view !== false
     ? await viewH5pContent(token, p, c, logger, opts)
     : { ok: true, status: 0 };
-  // 2) Đánh dấu hoàn thành qua learn_status (best-effort): một số tài liệu API trả
-  //    400 (invalid_parameter/rate-limit) dù đã "xem" — không vì thế mà báo lỗi.
+  // 2) Đánh dấu hoàn thành qua learn_status — ĐÂY mới là endpoint quyết định
+  //    status=3 (view_h5p_content chỉ tăng lượt xem, KHÔNG đổi trạng thái).
   let r = await markComplete(token, p, cs, logger, opts);
-  if (!r.ok && r.status === 400 && v && v.ok) {
+  if (!r.ok) {
     await sleepFn(900 + Math.floor(Math.random() * 600)); // backoff nhẹ rồi thử lại 1 lần
     r = await markComplete(token, p, cs, logger, opts);
   }
 
   await sleepFn(opts.dwellMs || 600); // nghỉ nhỏ cho tự nhiên
-  const solved = !!(r.ok || (v && v.ok)); // view OK cũng coi như xong (tài liệu)
+  // CHỈ coi là xong khi learn_status xác nhận. Trước đây `|| (v && v.ok)` khiến
+  // bài chỉ "đã xem" (view 200 nhưng status vẫn 0) bị báo hoàn thành -> sai.
+  const solved = !!r.ok;
+  if (!solved && v && v.ok) {
+    logger && logger(`  ⚠️ Đã xem nhưng learn_status KHÔNG xác nhận (HTTP ${r.status}) — LMS có thể chưa ghi nhận`);
+  }
   return { solved, viewed: !!(v && v.ok), marked: !!r.ok, status: r.status, kind: 'doc', p, c, cs };
 }
 
