@@ -71,7 +71,12 @@ async function fetchLearnStatus(token, courseId, opts = {}) {
   try {
     const body = await getJson(fetchImpl, `${apiBase}/h5p/contents/learn_status?page_id=1&per_page=-1&h5p_course_id=${courseId}`, token, opts.timeoutMs);
     return (body && body.data && body.data.h5p_content_views) || [];
-  } catch (_) { return []; }
+  } catch (e) {
+    // Lỗi tạm thời 1 khóa không được phép nuốt im lặng (trước đây -> coi như khóa
+    // rỗng, bỏ sót toàn bộ bài của khóa đó).
+    opts.logger && opts.logger(`  ⚠️ learn_status lỗi (khóa ${courseId}): ${String(e && e.message).slice(0, 80)}`);
+    return [];
+  }
 }
 
 /** Chi tiết 1 content -> h5p_content, hoặc {__denied} nếu không có quyền, hoặc null. */
@@ -93,9 +98,21 @@ async function fetchContentDetail(token, h5pContentId, opts = {}) {
  * detail null (API lỗi) -> fallback theo đuôi uri/title; không chắc -> isFile:false (an toàn).
  */
 function classify(detail, title) {
-  if (detail && typeof detail.type === 'number') return detail.type === 1;
+  // `type` có thể là number HOẶC string ("1") -> luôn ép Number trước khi so.
+  if (detail && detail.type != null && Number.isFinite(Number(detail.type))) return Number(detail.type) === 1;
   const t = String((detail && detail.uri) || title || '');
   return /\.(pptx?|pdf|docx?|xlsx?|mp4|avi|mov|mkv|zip|rar)$/i.test(t);
+}
+
+/** Chạy fn trên từng phần tử với tối đa `limit` việc song song (giữ nguyên thứ tự). */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let idx = 0;
+  const n = Math.max(1, Math.min(limit || 1, items.length));
+  await Promise.all(Array.from({ length: n }, async () => {
+    while (idx < items.length) { const i = idx++; out[i] = await fn(items[i], i); }
+  }));
+  return out;
 }
 
 /**
@@ -111,18 +128,23 @@ async function scanIncomplete(token, opts = {}) {
     const views = await fetchLearnStatus(token, c.id, opts);
     doneParts += views.filter((v) => v.status === 3).length;
     const seen = new Set();
-    for (const v of views) {
-      seen.add(v.h5p_content_id);
-      if (v.status === 3) continue;
-      const detail = opts.detailImpl
-        ? await opts.detailImpl(token, v.h5p_content_id, opts)
-        : await fetchContentDetail(token, v.h5p_content_id, opts);
+    const pending = views.filter((v) => v.status !== 3);
+    for (const v of views) seen.add(v.h5p_content_id);
+    // Lấy detail của các phần chưa xong SONG SONG (trước đây tuần tự -> chậm khi
+    // khóa có nhiều phần). Giữ nguyên thứ tự để báo cáo ổn định.
+    const details = await mapLimit(pending, opts.detailConcurrency || 6, (v) => (
+      opts.detailImpl
+        ? opts.detailImpl(token, v.h5p_content_id, opts)
+        : fetchContentDetail(token, v.h5p_content_id, opts)
+    ));
+    pending.forEach((v, i) => {
+      const detail = details[i];
       parts.push({
         cs: c.id, courseTitle: c.title, p: v.h5p_content_id, status: v.status,
         title: (detail && detail.title) || '', isFile: classify(detail, v.title),
         denied: !!(detail && detail.__denied), deniedMsg: (detail && detail.__error) || '',
       });
-    }
+    });
     // TÀI LIỆU (type=1): không phải H5P. Với khóa CHỈ có tài liệu, learn_status
     // trả RỖNG (chưa từng mở) nên vòng lặp trên bỏ sót hoàn toàn. Lấy danh sách
     // tài liệu của khóa và thêm những cái CHƯA xem (total_view==0) vào parts.
