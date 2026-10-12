@@ -40,29 +40,34 @@ function StatCard({ value, label, icon, tone = 'neutral' }) {
 }
 
 /* ─── Material switch ──────────────────────────────────────────────────── */
+/* Toàn bộ hàng là một <button> để chạm ở đâu cũng bật/tắt (tốt cho mobile). */
 function Switch({ label, checked, onChange, disabled, hint }) {
   return (
-    <label className={`flex items-center justify-between gap-4 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={disabled ? undefined : onChange}
+      disabled={disabled}
+      className={`w-full min-h-[48px] flex items-center justify-between gap-4 text-left py-2
+        rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
       <span className="flex flex-col">
         <span className="text-[14px] text-on-surface">{label}</span>
         {hint && <span className="text-[12px] text-on-surface-variant">{hint}</span>}
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={disabled ? undefined : onChange}
-        disabled={disabled}
+      <span
+        aria-hidden="true"
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0
-          focus:outline-none focus:ring-2 focus:ring-primary/40
           ${checked ? 'bg-primary' : 'bg-outline'}`}
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200
             ${checked ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}
         />
-      </button>
-    </label>
+      </span>
+    </button>
   );
 }
 
@@ -99,7 +104,6 @@ export default function Home() {
   const [username, setUsername]             = useState('');
   const [password, setPassword]             = useState('');
   const [headlessMode, setHeadlessMode]     = useState(true); // mặc định ẩn trên host
-  const [saveCredentials, setSaveCredentials] = useState(false);
   const [blacklistSubjects, setBlacklistSubjects] = useState(
     'võ nhạc,thể dục,xuất phát,nhịp điệu,âm nhạc,bốn mùa hòa ca,đá cầu,quan họ,giai điệu'
   );
@@ -117,18 +121,16 @@ export default function Home() {
 
   /* Load saved settings */
   useEffect(() => {
-    const savedUser     = localStorage.getItem('lms_username');
-    const savedPass     = localStorage.getItem('lms_password');
+    // Không bao giờ lưu tài khoản/mật khẩu — dọn sạch dữ liệu cũ nếu có.
+    localStorage.removeItem('lms_username');
+    localStorage.removeItem('lms_password');
     const savedSettings = localStorage.getItem('lms_settings');
     const savedTheme    = localStorage.getItem('lms_theme');
-    if (savedUser) setUsername(savedUser);
-    if (savedPass) setPassword(savedPass);
     if (savedTheme) setTheme(savedTheme);
     if (savedSettings) {
       try {
         const s = JSON.parse(savedSettings);
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
-        if (typeof s.saveCredentials=== 'boolean') setSaveCredentials(s.saveCredentials);
         if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
         if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
       } catch { /* ignore */ }
@@ -137,20 +139,13 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Persist settings */
+  /* Persist settings (KHÔNG lưu tài khoản/mật khẩu) */
   useEffect(() => {
     if (!loadedRef.current) return;
-    if (saveCredentials) {
-      localStorage.setItem('lms_username', username);
-      localStorage.setItem('lms_password', password);
-    } else {
-      localStorage.removeItem('lms_username');
-      localStorage.removeItem('lms_password');
-    }
     localStorage.setItem('lms_settings', JSON.stringify({
-      headlessMode, saveCredentials, scanClass, blacklistSubjects,
+      headlessMode, scanClass, blacklistSubjects,
     }));
-  }, [username, password, headlessMode, saveCredentials, scanClass, blacklistSubjects]);
+  }, [headlessMode, scanClass, blacklistSubjects]);
 
   /* Theme: áp dụng + theo dõi hệ thống khi ở chế độ system */
   useEffect(() => {
@@ -275,7 +270,7 @@ export default function Home() {
               type="button"
               onClick={cycleTheme}
               title={`Giao diện: ${theme === 'system' ? 'Theo hệ thống' : theme === 'light' ? 'Sáng' : 'Tối'}`}
-              className="md-iconbtn w-10 h-10 flex items-center justify-center"
+              className="md-iconbtn w-11 h-11 flex items-center justify-center shrink-0"
             >
               <span className="material-symbols-outlined">
                 {theme === 'system' ? 'brightness_auto' : theme === 'light' ? 'light_mode' : 'dark_mode'}
@@ -347,7 +342,7 @@ export default function Home() {
                   Nhật ký
                 </div>
                 <button onClick={clearLogs} disabled={isRunning || logs.length === 0}
-                  className="md-textbtn text-[12px] px-3 py-1 font-medium">
+                  className="md-textbtn text-[12px] px-3 py-2 font-medium">
                   Xoá
                 </button>
               </div>
@@ -384,12 +379,11 @@ export default function Home() {
                 <div className="pt-2 space-y-3 border-t border-outline">
                   <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt chạy ẩn trên máy chủ; xem qua khung hình trực tiếp bên trái." />
                   <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp, không chỉ bài trong “việc cần làm”." />
-                  <Switch label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} hint="Lưu tài khoản/mật khẩu vào trình duyệt để lần sau tự điền." />
                 </div>
 
                 <div>
                   <button type="button" onClick={() => setShowSettings(!showSettings)}
-                    className="flex items-center gap-1 text-[13px] font-medium text-on-surface-variant hover:text-primary transition-colors mb-2">
+                    className="flex items-center gap-1 min-h-[44px] text-[13px] font-medium text-on-surface-variant hover:text-primary active:text-primary transition-colors">
                     <span className="material-symbols-outlined text-[18px]">{showSettings ? 'expand_less' : 'expand_more'}</span>
                     Môn bỏ qua
                   </button>

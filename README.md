@@ -45,6 +45,8 @@ LmsAuto/
 │   ├── core/           # Lõi: đăng nhập, quét bài, chạy luồng chính
 │   └── h5p/            # Các bộ giải bài tập, video, sách, tài liệu
 ├── app/                # Giao diện web (Next.js): page.js + api/solve
+├── Dockerfile          # Đóng gói để deploy (Render/Docker)
+├── render.yaml         # Blueprint deploy Render
 ├── package.json
 ├── LICENSE
 └── README.md
@@ -125,6 +127,42 @@ npm run auto -- --complete-h5p     # Làm lại & hoàn thành mọi bài tập 
   cờ `--headless` với CLI. Mặc định trình duyệt chạy ẩn.
 - **Môn bỏ qua**: trên web nhập danh sách môn cách nhau bởi dấu phẩy (vd:
   `thể dục, âm nhạc, mĩ thuật`); với CLI dùng cờ `--all` để không lọc.
+
+---
+
+## ☁️ Triển khai (Deploy) — Render free
+
+Cách rẻ nhất để có URL công khai (dùng được từ điện thoại) mà **không cần thẻ
+tín dụng** là deploy bằng Docker lên [Render](https://render.com) gói Free.
+
+### Cách 1 — Blueprint (nhanh nhất)
+
+Repo đã có sẵn `Dockerfile` và `render.yaml`. Vào Render → **New → Blueprint**,
+chọn repo này, Render tự đọc `render.yaml` và deploy.
+
+### Cách 2 — Thủ công
+
+Render → **New → Web Service** → chọn repo → **Runtime: Docker** → **Plan: Free**
+→ **Region: Singapore** (gần Việt Nam nhất) → Deploy. Render tự dùng `Dockerfile`.
+
+### Lưu ý quan trọng với gói Free
+
+- **RAM chỉ 512MB.** Chromium rất ngốn RAM, nên image đã bật sẵn biến
+  `LMS_CHROMIUM_LOW_MEMORY=1` để thêm cờ tiết kiệm RAM (`--single-process`,
+  `--no-zygote`). Nếu Chromium chạy bất ổn (lỗi `newContext`, ảnh xem trước đen),
+  đặt biến này thành `0` trong tab **Environment** — đổi lại sẽ tốn RAM hơn.
+- **Ngủ sau 15 phút rảnh** → lần truy cập đầu sẽ chậm ~30–60 giây (cold start).
+- **750 giờ/tháng** — với 1 service thì gần như không đụng trần.
+- Nên **giải từng lượt, ít bài một** để tránh OOM; tránh chạy nhiều người cùng lúc.
+
+### Tự host bằng Docker
+
+```bash
+docker build -t lmsauto .
+docker run -p 10000:10000 lmsauto   # mở http://localhost:10000
+```
+
+> Máy tự host có nhiều RAM hơn → đặt `LMS_CHROMIUM_LOW_MEMORY=0` cho ổn định nhất.
 
 ---
 

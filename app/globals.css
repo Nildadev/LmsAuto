@@ -51,6 +51,22 @@ html, body {
   font-family: 'Roboto', system-ui, -apple-system, sans-serif;
 }
 
+/* ── Touch: bỏ trễ 300ms + bỏ highlight xanh khi chạm trên mobile ──── */
+button,
+[role="switch"],
+[role="button"],
+a,
+label,
+input,
+textarea {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tap target tối thiểu 44px cho các phần tử điều khiển (Material) */
+button { min-height: 44px; }
+.md-btn, .md-textbtn, .md-iconbtn { min-height: 44px; }
+
 /* ── Material card ────────────────────────────────────────────────── */
 .md-card {
   background: rgb(var(--md-surface));
@@ -77,6 +93,7 @@ html, body {
   transition: background-color 0.15s;
 }
 .md-textbtn:hover:not(:disabled) { background: rgb(var(--md-primary) / 0.10); }
+.md-textbtn:active:not(:disabled) { background: rgb(var(--md-primary) / 0.16); }
 .md-textbtn:disabled { color: rgb(var(--md-on-surface-variant)); opacity: 0.5; cursor: not-allowed; }
 
 /* ── Icon button ──────────────────────────────────────────────────── */
@@ -86,6 +103,7 @@ html, body {
   transition: background-color 0.15s, color 0.15s;
 }
 .md-iconbtn:hover { background: rgb(var(--md-on-surface) / 0.08); color: rgb(var(--md-on-surface)); }
+.md-iconbtn:active { background: rgb(var(--md-on-surface) / 0.14); color: rgb(var(--md-on-surface)); }
 
 /* ── Status dot pulse (nhẹ, không glow) ───────────────────────────── */
 @keyframes md-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }

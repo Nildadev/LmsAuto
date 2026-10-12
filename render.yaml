@@ -1,0 +1,16 @@
+# Render Blueprint — triển khai LmsAuto lên gói Free (không cần thẻ tín dụng).
+# Đẩy file này lên repo rồi vào Render → New → Blueprint, chọn repo là xong.
+services:
+  - type: web
+    name: lmsauto
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # Gói free chỉ có 512MB RAM → bật cờ Chromium tiết kiệm RAM.
+      # Nếu Chromium bất ổn (single-process), đổi thành "0".
+      - key: LMS_CHROMIUM_LOW_MEMORY
+        value: "1"

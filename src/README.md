@@ -82,8 +82,8 @@ npm run debug:solve
 ```
 
 Script debug lấy token qua `scripts/_token.js` (ưu tiên env `LMS_TOKEN`, rồi file
-`/tmp/token.txt` cũ, cuối cùng tự login bằng `LMS_USERNAME`/`LMS_PASSWORD` hoặc
-`UserSECRET.txt`). Không cần tạo `/tmp/token.txt` nữa.
+`/tmp/token.txt` cũ, cuối cùng tự login bằng `LMS_USERNAME`/`LMS_PASSWORD`).
+Không cần tạo `/tmp/token.txt` nữa.
 
 Kết quả debug thành công sẽ hiện: `KẾT QUẢ: {"bar":"100%","correct":1,"wrong":0}`.
 

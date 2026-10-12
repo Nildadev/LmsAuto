@@ -70,13 +70,36 @@ async function launch(opts = {}) {
   // LƯU Ý (đã debug thực tế): launchPersistentContext khiến H5P player của
   // lms360 KHÔNG render (chỉ 1 frame, không có H5PIntegration). Nên dùng
   // launch + newContext — đã verify tạo đủ 2 frame và có đáp án.
+  //
+  // Bộ cờ tiết kiệm RAM cho host 512MB (Render free). Bật cờ "nặng" bằng
+  // env LMS_CHROMIUM_LOW_MEMORY=1 (Dockerfile đặt sẵn). Tắt đi nếu Chromium
+  // bất ổn (single-process đôi khi làm hỏng newContext/screencast).
+  const lowMemory = process.env.LMS_CHROMIUM_LOW_MEMORY === '1';
+  const args = [
+    '--disable-blink-features=AutomationControlled',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-extensions',
+    '--mute-audio',
+    '--hide-scrollbars',
+    '--disable-background-networking',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-features=Translate,BackForwardCache,MediaRouter,OptimizationHints,AcceptCHFrame',
+  ];
+  if (lowMemory) {
+    args.push(
+      '--single-process',
+      '--no-zygote',
+      '--js-flags=--max-old-space-size=128',
+    );
+  }
   const browser = await chromium.launch({
     headless: opts.headless !== false,
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
+    args,
   });
   const context = await browser.newContext({
     viewport: { width: 1366 + rand(-40, 40), height: 768 + rand(-30, 30) },
