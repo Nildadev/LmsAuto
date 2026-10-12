@@ -47,10 +47,13 @@ function CircularStat({ value, max, color, icon, label }) {
 }
 
 /* ─── Toggle Switch ────────────────────────────────────────────────────── */
-function Toggle({ label, checked, onChange, disabled }) {
+function Toggle({ label, checked, onChange, disabled, hint }) {
   return (
     <label className={`flex items-center justify-between ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-      <span className="text-[14px] text-[#bec8d2]">{label}</span>
+      <span className="flex flex-col">
+        <span className="text-[14px] text-[#bec8d2]">{label}</span>
+        {hint && <span className="text-[11px] text-[#3e4850]">{hint}</span>}
+      </span>
       <button
         type="button"
         role="switch"
@@ -58,7 +61,7 @@ function Toggle({ label, checked, onChange, disabled }) {
         onClick={disabled ? undefined : onChange}
         disabled={disabled}
         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200
-          focus:outline-none disabled:cursor-not-allowed
+          focus:outline-none disabled:cursor-not-allowed shrink-0
           ${checked ? 'bg-[#00a572]' : 'bg-[#222a3d]'}`}
       >
         <span
@@ -74,7 +77,7 @@ function Toggle({ label, checked, onChange, disabled }) {
 export default function Home() {
   const [username, setUsername]             = useState('');
   const [password, setPassword]             = useState('');
-  const [headlessMode, setHeadlessMode]     = useState(false);
+  const [headlessMode, setHeadlessMode]     = useState(true); // mặc định ẩn trên host
   const [autoConfirm, setAutoConfirm]       = useState(false);
   const [saveCredentials, setSaveCredentials] = useState(false);
   const [debugMode, setDebugMode]           = useState(false);
@@ -84,7 +87,9 @@ export default function Home() {
   const [showSettings, setShowSettings]     = useState(false);
   const [logs, setLogs]                     = useState([]);
   const [isRunning, setIsRunning]           = useState(false);
-  const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0 });
+  const [previewSrc, setPreviewSrc]         = useState('');
+  const [currentItem, setCurrentItem]       = useState('');
+  const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
   const logEndRef  = useRef(null);
   const loadedRef  = useRef(false); // gate: don't persist before loading
 
@@ -98,7 +103,6 @@ export default function Home() {
     if (savedSettings) {
       try {
         const s = JSON.parse(savedSettings);
-        // Explicit Boolean() so stored 'false' is not coerced to true by '||'
         if (typeof s.debugMode      === 'boolean') setDebugMode(s.debugMode);
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
         if (typeof s.autoConfirm    === 'boolean') setAutoConfirm(s.autoConfirm);
@@ -130,24 +134,35 @@ export default function Home() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  /* Parse log messages for stats */
+  /* Parse log messages for stats (khớp log của engine mới src/core/flow.js) */
   const addLog = (message) => {
     setLogs((prev) => [...prev, { message, time: getTimeStamp() }]);
-    if (message.includes('Tổng số bài quét thấy')) {
-      const m = message.match(/Tổng số bài quét thấy: (\d+)/);
-      if (m) setStats((p) => ({ ...p, total: parseInt(m[1]) }));
+    // scan: "📋 Được giao: A bài — cần làm: B" -> total=B, skipped=A-B
+    if (message.includes('cần làm')) {
+      const totalM = message.match(/cần làm: (\d+)/);
+      const assignedM = message.match(/Được giao: (\d+)/);
+      if (totalM) {
+        const total = parseInt(totalM[1]);
+        const assigned = assignedM ? parseInt(assignedM[1]) : total;
+        setStats((p) => ({ ...p, total, skipped: Math.max(0, assigned - total), completed: 0, errors: 0 }));
+      }
     }
-    if (message.includes('Số bài sẽ học')) {
-      const m = message.match(/Số bài sẽ học: (\d+)/);
-      if (m) setStats((p) => ({ ...p, completed: 0, total: parseInt(m[1]) }));
-    }
-    if (message.includes('Số bài bỏ qua')) {
-      const m = message.match(/Số bài bỏ qua: (\d+)/);
-      if (m) setStats((p) => ({ ...p, skipped: parseInt(m[1]) }));
-    }
-    if (message.includes('Hoàn tất khóa học')) {
+    // mỗi bài xong: "  ✅ Xong (kind)"
+    if (message.includes('✅ Xong')) {
       setStats((p) => ({ ...p, completed: p.completed + 1 }));
     }
+    // bài chưa xác nhận hoàn thành -> lỗi
+    if (message.includes('Chưa xác nhận hoàn thành')) {
+      setStats((p) => ({ ...p, errors: p.errors + 1 }));
+    }
+    // kết quả cuối: "📊 Kết quả: solved/total bài xác nhận xong, failed lỗi."
+    if (message.includes('Kết quả:')) {
+      const m = message.match(/Kết quả: (\d+)\/(\d+) bài xác nhận xong, (\d+) lỗi\./);
+      if (m) setStats((p) => ({ ...p, completed: parseInt(m[1]), total: parseInt(m[2]), errors: parseInt(m[3]) }));
+    }
+    // bài đang làm: "━━━ [i/n] [subject] title ━━━"
+    const itemM = message.match(/━━━ \[\d+\/\d+\] \[[^\]]*\] (.+) ━━━/);
+    if (itemM) setCurrentItem(itemM[1]);
   };
 
   /* Start automation */
@@ -156,7 +171,9 @@ export default function Home() {
     if (isRunning) return;
     setIsRunning(true);
     setLogs([]);
-    setStats({ total: 0, completed: 0, skipped: 0 });
+    setPreviewSrc('');
+    setCurrentItem('');
+    setStats({ total: 0, completed: 0, skipped: 0, errors: 0 });
     addLog('🚀 Đang khởi tạo kết nối với LMS360...');
 
     const subjects = blacklistSubjects.split(',').map((s) => s.trim()).filter(Boolean);
@@ -184,6 +201,7 @@ export default function Home() {
           try {
             const data = JSON.parse(line);
             if (data.message) addLog(data.message);
+            if (data.screenshot) setPreviewSrc(data.screenshot);
             if (data.done) { addLog('🏁 Tự động hóa hoàn tất thành công!'); setIsRunning(false); }
             if (data.error) { addLog(`❌ Lỗi: ${data.error}`); setIsRunning(false); }
           } catch { /* skip malformed */ }
@@ -195,7 +213,7 @@ export default function Home() {
     }
   };
 
-  const clearLogs = () => { setLogs([]); setStats({ total: 0, completed: 0, skipped: 0 }); };
+  const clearLogs = () => { setLogs([]); setStats({ total: 0, completed: 0, skipped: 0, errors: 0 }); };
 
   const progress = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
@@ -212,7 +230,11 @@ export default function Home() {
             drop-shadow-[0_0_10px_rgba(14,165,233,0.5)]">
             LMS360 AUTO SOLVER
           </span>
-          <div className="flex items-center gap-2 ml-4">
+          <span className="px-2 py-0.5 rounded-full bg-[#89ceff]/10 border border-[#89ceff]/30
+            text-[11px] tracking-widest text-[#89ceff] font-['Space_Grotesk']">
+            v2.0
+          </span>
+          <div className="flex items-center gap-2 ml-2">
             <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-[#4edea3] pulse-dot' : 'bg-slate-500'}`} />
             <span className="font-['Space_Grotesk'] text-[12px] tracking-widest font-medium
               text-[#4edea3]">
@@ -224,19 +246,6 @@ export default function Home() {
           <span className="material-symbols-outlined text-slate-500 hover:text-sky-300
             hover:bg-sky-500/10 p-2 rounded-full cursor-pointer transition-all">
             monitoring
-          </span>
-          <span className="material-symbols-outlined text-slate-500 hover:text-sky-300
-            hover:bg-sky-500/10 p-2 rounded-full cursor-pointer transition-all">
-            smart_toy
-          </span>
-          <span className="material-symbols-outlined text-slate-500 hover:text-sky-300
-            hover:bg-sky-500/10 p-2 rounded-full cursor-pointer transition-all">
-            query_stats
-          </span>
-          <div className="h-6 w-px bg-[#3e4850]/50 mx-1" />
-          <span className="material-symbols-outlined text-slate-500 hover:text-sky-300
-            hover:bg-sky-500/10 p-2 rounded-full cursor-pointer transition-all">
-            notifications_active
           </span>
           <div className="w-8 h-8 rounded-full bg-[#222a3d] border border-[#3e4850]
             flex items-center justify-center hover:border-[#89ceff] transition-colors cursor-pointer
@@ -251,109 +260,119 @@ export default function Home() {
         <div className="max-w-[1600px] mx-auto space-y-6">
 
           {/* ── Stats Row ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="fade-up-1">
-              <CircularStat
-                value={stats.total}
-                max={Math.max(stats.total, 1)}
-                color="text-[#89ceff]"
-                icon="library_books"
-                label="Total Courses"
-              />
+              <CircularStat value={stats.total} max={Math.max(stats.total, 1)} color="text-[#89ceff]" icon="library_books" label="Tổng bài" />
             </div>
             <div className="fade-up-2">
-              <CircularStat
-                value={stats.completed}
-                max={Math.max(stats.total, 1)}
-                color="text-[#4edea3]"
-                icon="task_alt"
-                label="Completed"
-              />
+              <CircularStat value={stats.completed} max={Math.max(stats.total, 1)} color="text-[#4edea3]" icon="task_alt" label="Đã xong" />
             </div>
             <div className="fade-up-3">
-              <CircularStat
-                value={stats.skipped}
-                max={Math.max(stats.total, 1)}
-                color="text-[#3e4850]"
-                icon="skip_next"
-                label="Skipped"
-              />
+              <CircularStat value={stats.errors} max={Math.max(stats.total, 1)} color="text-[#ffb4ab]" icon="error" label="Lỗi" />
+            </div>
+            <div className="fade-up-4">
+              <CircularStat value={stats.skipped} max={Math.max(stats.total, 1)} color="text-[#3e4850]" icon="skip_next" label="Bỏ qua" />
             </div>
           </div>
 
           {/* ── Work Area ───────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 fade-up-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            {/* ── Terminal Console (8 cols) ──────────────────────────────── */}
-            <div className="lg:col-span-8 flex flex-col glass-panel rounded-lg overflow-hidden h-[580px]">
-              {/* Terminal chrome bar */}
-              <div className="flex items-center px-4 py-2.5 bg-[#2d3449] border-b border-[#3e4850]/40 shrink-0">
-                <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#ffb4ab]" />
-                  <div className="w-3 h-3 rounded-full bg-[#facc15]" />
-                  <div className="w-3 h-3 rounded-full bg-[#4edea3]" />
-                </div>
-                <div className="mx-auto font-['Space_Grotesk'] text-[12px] tracking-widest
-                  font-medium text-[#bec8d2]">
-                  solver_process.log
-                </div>
-                <button
-                  onClick={clearLogs}
-                  disabled={isRunning || logs.length === 0}
-                  className="font-['Space_Grotesk'] text-[11px] tracking-wider text-[#3e4850]
-                    hover:text-[#89ceff] disabled:opacity-30 disabled:cursor-not-allowed
-                    transition-colors px-2 py-0.5 rounded border border-transparent
-                    hover:border-[#89ceff]/30">
-                  CLR
-                </button>
-              </div>
+            {/* ── Left column (preview + terminal) ───────────────────────── */}
+            <div className="lg:col-span-8 flex flex-col gap-6">
 
-              {/* Terminal body */}
-              <div className="flex-1 terminal-bg p-4 overflow-y-auto font-['Fira_Code',Consolas,monospace] text-[13px] leading-relaxed">
-                {logs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 text-[#3e4850]">
-                    <span className="material-symbols-outlined text-5xl opacity-40">terminal</span>
-                    <span className="font-['Space_Grotesk'] text-[12px] tracking-widest">
-                      AWAITING COMMAND...
-                    </span>
+              {/* Browser preview */}
+              <div className="glass-panel rounded-lg overflow-hidden fade-up-1">
+                <div className="flex items-center px-4 py-2.5 bg-[#2d3449] border-b border-[#3e4850]/40 shrink-0">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#ffb4ab]" />
+                    <div className="w-3 h-3 rounded-full bg-[#facc15]" />
+                    <div className="w-3 h-3 rounded-full bg-[#4edea3]" />
                   </div>
-                ) : (
-                  logs.map((log, i) => (
-                    <div key={i} className="flex gap-0 log-entry mb-0.5">
-                      <span className="text-[#3e4850] w-9 shrink-0 text-right pr-3 select-none
-                        text-[11px] pt-[1px]">
-                        {i + 1}
-                      </span>
-                      <span className="text-[#89ceff]/60 shrink-0 pr-2">[{log.time}]</span>
-                      <span className={`${getLogStyle(log.message)} break-all`}>
-                        {log.message}
+                  <div className="mx-auto font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2]">
+                    browser_preview · live
+                  </div>
+                  <span className={`flex items-center gap-1 font-['Space_Grotesk'] text-[11px] tracking-widest
+                    ${isRunning ? 'text-[#4edea3]' : 'text-[#3e4850]'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-[#4edea3] pulse-dot' : 'bg-[#3e4850]'}`} />
+                    {isRunning ? (headlessMode ? 'HEADLESS' : 'VISIBLE') : 'IDLE'}
+                  </span>
+                </div>
+                <div className="relative h-[340px] bg-[#060e20] flex items-center justify-center overflow-hidden">
+                  {previewSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewSrc} alt="browser preview" className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-[#3e4850]">
+                      <span className="material-symbols-outlined text-5xl opacity-40">visibility</span>
+                      <span className="font-['Space_Grotesk'] text-[12px] tracking-widest">
+                        {isRunning ? 'ĐANG TẢI HÌNH ẢNH...' : 'CHƯA CÓ HÌNH ẢNH'}
                       </span>
                     </div>
-                  ))
-                )}
-                {/* Blinking cursor */}
-                {isRunning && (
-                  <div className="flex items-center mt-2 pl-9">
-                    <span className="w-[7px] h-4 bg-[#89ceff] animate-pulse" />
+                  )}
+                </div>
+                <div className="px-4 py-2 bg-[#2d3449] border-t border-[#3e4850]/40 text-[12px] text-[#bec8d2]
+                  font-['Space_Grotesk] truncate">
+                  {currentItem ? `▶ ${currentItem}` : (isRunning ? 'Đang xử lý…' : 'Trình duyệt chạy ẩn (headless) trên máy chủ — đây là hình ảnh trực tiếp.')}
+                </div>
+              </div>
+
+              {/* Terminal console */}
+              <div className="glass-panel rounded-lg overflow-hidden flex flex-col h-[360px] fade-up-2">
+                <div className="flex items-center px-4 py-2.5 bg-[#2d3449] border-b border-[#3e4850]/40 shrink-0">
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#ffb4ab]" />
+                    <div className="w-3 h-3 rounded-full bg-[#facc15]" />
+                    <div className="w-3 h-3 rounded-full bg-[#4edea3]" />
                   </div>
-                )}
-                <div ref={logEndRef} />
+                  <div className="mx-auto font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2]">
+                    solver_process.log
+                  </div>
+                  <button
+                    onClick={clearLogs}
+                    disabled={isRunning || logs.length === 0}
+                    className="font-['Space_Grotesk'] text-[11px] tracking-wider text-[#3e4850]
+                      hover:text-[#89ceff] disabled:opacity-30 disabled:cursor-not-allowed transition-colors px-2 py-0.5 rounded border border-transparent hover:border-[#89ceff]/30">
+                    CLR
+                  </button>
+                </div>
+                <div className="flex-1 terminal-bg p-4 overflow-y-auto font-['Fira_Code',Consolas,monospace] text-[13px] leading-relaxed">
+                  {logs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 text-[#3e4850]">
+                      <span className="material-symbols-outlined text-5xl opacity-40">terminal</span>
+                      <span className="font-['Space_Grotesk'] text-[12px] tracking-widest">AWAITING COMMAND...</span>
+                    </div>
+                  ) : (
+                    logs.map((log, i) => (
+                      <div key={i} className="flex gap-0 log-entry mb-0.5">
+                        <span className="text-[#3e4850] w-9 shrink-0 text-right pr-3 select-none text-[11px] pt-[1px]">
+                          {i + 1}
+                        </span>
+                        <span className="text-[#89ceff]/60 shrink-0 pr-2">[{log.time}]</span>
+                        <span className={`${getLogStyle(log.message)} break-all`}>{log.message}</span>
+                      </div>
+                    ))
+                  )}
+                  {isRunning && (
+                    <div className="flex items-center mt-2 pl-9">
+                      <span className="w-[7px] h-4 bg-[#89ceff] animate-pulse" />
+                    </div>
+                  )}
+                  <div ref={logEndRef} />
+                </div>
               </div>
             </div>
 
-            {/* ── Control Card (4 cols) ──────────────────────────────────── */}
-            <div className="lg:col-span-4 fade-up-4">
+            {/* ── Control Card (right) ──────────────────────────────────── */}
+            <div className="lg:col-span-4 fade-up-3">
               <div className="glass-panel rounded-lg p-6 flex flex-col h-full relative overflow-hidden">
-                {/* Decorative glow */}
-                <div className="absolute top-0 right-0 w-40 h-40 bg-[#89ceff]/10 rounded-full
-                  blur-3xl -mr-20 -mt-20 pointer-events-none" />
+                <div className="absolute top-0 right-0 w-40 h-40 bg-[#89ceff]/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
 
                 <h2 className="text-[24px] leading-tight font-semibold text-[#89ceff] mb-6">
                   Execution Protocol
                 </h2>
 
                 <form onSubmit={startAutomation} className="flex flex-col gap-4 flex-1">
-                  {/* Username floating label */}
                   <div className="relative">
                     <input
                       id="username"
@@ -363,23 +382,13 @@ export default function Home() {
                       disabled={isRunning}
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface
-                        bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none
-                        focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff]
-                        disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     />
-                    <label
-                      htmlFor="username"
-                      className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest
-                        font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75
-                        top-4 z-10 origin-[0] left-4
-                        peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0
-                        peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
-                      Target Username
+                    <label htmlFor="username" className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
+                      Tài khoản
                     </label>
                   </div>
 
-                  {/* Password floating label */}
                   <div className="relative">
                     <input
                       id="password"
@@ -389,42 +398,27 @@ export default function Home() {
                       disabled={isRunning}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface
-                        bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none
-                        focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff]
-                        disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="peer block w-full px-4 pb-2.5 pt-5 text-[16px] text-on-surface bg-[#131b2e] border-b border-[#3e4850] rounded-t-lg appearance-none focus:outline-none focus:border-[#89ceff] focus:shadow-[0_1px_0_0_#89ceff] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     />
-                    <label
-                      htmlFor="password"
-                      className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest
-                        font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75
-                        top-4 z-10 origin-[0] left-4
-                        peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0
-                        peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
-                      Security Key
+                    <label htmlFor="password" className="absolute font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] duration-200 transform -translate-y-4 scale-75 top-4 z-10 origin-[0] left-4 peer-placeholder-shown:scale-100 peer-placeholder-shown:translate-y-0 peer-focus:scale-75 peer-focus:-translate-y-4 peer-focus:text-[#89ceff]">
+                      Mật khẩu
                     </label>
                   </div>
 
-                  {/* Toggles */}
                   <div className="pt-2 space-y-3 border-t border-[#3e4850]/50">
-                    <Toggle label="Headless Mode"        checked={headlessMode}    onChange={() => setHeadlessMode(!headlessMode)}       disabled={isRunning} />
-                    <Toggle label="Auto-Confirm"         checked={autoConfirm}     onChange={() => setAutoConfirm(!autoConfirm)}         disabled={isRunning} />
-                    <Toggle label="Save Credentials"     checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
-                    <Toggle label="Debug Mode"           checked={debugMode}       onChange={() => setDebugMode(!debugMode)}             disabled={isRunning} />
+                    <Toggle label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt ẩn trên máy chủ, xem qua ảnh trực tiếp" />
+                    <Toggle label="Tự động chạy" checked={autoConfirm} onChange={() => setAutoConfirm(!autoConfirm)} disabled={isRunning} />
+                    <Toggle label="Lưu tài khoản" checked={saveCredentials} onChange={() => setSaveCredentials(!saveCredentials)} disabled={isRunning} />
+                    <Toggle label="Chế độ debug" checked={debugMode} onChange={() => setDebugMode(!debugMode)} disabled={isRunning} />
                   </div>
 
-                  {/* Blacklist — collapsible */}
                   <div>
                     <button
                       type="button"
                       onClick={() => setShowSettings(!showSettings)}
-                      className="flex items-center gap-2 font-['Space_Grotesk'] text-[12px]
-                        tracking-widest font-medium text-[#bec8d2] hover:text-[#89ceff]
-                        transition-colors mb-2">
-                      <span className="material-symbols-outlined text-[16px]">
-                        {showSettings ? 'expand_less' : 'expand_more'}
-                      </span>
-                      BLACKLIST SUBJECTS
+                      className="flex items-center gap-2 font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#bec8d2] hover:text-[#89ceff] transition-colors mb-2">
+                      <span className="material-symbols-outlined text-[16px]">{showSettings ? 'expand_less' : 'expand_more'}</span>
+                      MÔN BỎ QUA
                     </button>
                     {showSettings && (
                       <textarea
@@ -432,49 +426,32 @@ export default function Home() {
                         disabled={isRunning}
                         value={blacklistSubjects}
                         onChange={(e) => setBlacklistSubjects(e.target.value)}
-                        placeholder="võ nhạc, thể dục, âm nhạc..."
-                        className="w-full px-3 py-2 text-[13px] text-on-surface bg-[#060e20]
-                          border border-[#3e4850] rounded-lg resize-none
-                          focus:outline-none focus:border-[#89ceff]
-                          disabled:opacity-50 disabled:cursor-not-allowed
-                          font-['Fira_Code',monospace] transition-all"
+                        placeholder="thể dục, âm nhạc, mĩ thuật..."
+                        className="w-full px-3 py-2 text-[13px] text-on-surface bg-[#060e20] border border-[#3e4850] rounded-lg resize-none focus:outline-none focus:border-[#89ceff] disabled:opacity-50 disabled:cursor-not-allowed font-['Fira_Code',monospace] transition-all"
                       />
                     )}
                   </div>
 
-                  {/* Progress bar */}
                   {stats.total > 0 && (
                     <div>
-                      <div className="flex justify-between font-['Space_Grotesk'] text-[12px]
-                        tracking-widest font-medium mb-2">
-                        <span className="text-[#89ceff]">Automation Status</span>
+                      <div className="flex justify-between font-['Space_Grotesk'] text-[12px] tracking-widest font-medium mb-2">
+                        <span className="text-[#89ceff]">Tiến độ</span>
                         <span className="text-[#89ceff]">{progress}%</span>
                       </div>
                       <div className="w-full h-2 bg-[#060e20] rounded-full overflow-hidden shadow-inner">
-                        <div
-                          className="h-full rounded-full relative transition-all duration-700"
-                          style={{
-                            width: `${progress}%`,
-                            background: 'linear-gradient(90deg, #89ceff 0%, #4edea3 100%)',
-                            boxShadow: '0 0 10px rgba(137,206,255,0.5)',
-                          }}>
+                        <div className="h-full rounded-full relative transition-all duration-700" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #89ceff 0%, #4edea3 100%)', boxShadow: '0 0 10px rgba(137,206,255,0.5)' }}>
                           <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full" />
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* CTA Button */}
                   <button
                     type="submit"
                     disabled={isRunning}
-                    className="mt-auto w-full py-4 rounded-lg btn-cyan
-                      font-['Space_Grotesk'] text-[12px] tracking-widest font-medium
-                      text-[#00344d] flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-[20px]">
-                      {isRunning ? 'hourglass_top' : 'bolt'}
-                    </span>
-                    {isRunning ? 'PROCESSING...' : 'START AUTOMATION'}
+                    className="mt-auto w-full py-4 rounded-lg btn-cyan font-['Space_Grotesk'] text-[12px] tracking-widest font-medium text-[#00344d] flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined text-[20px]">{isRunning ? 'hourglass_top' : 'bolt'}</span>
+                    {isRunning ? 'ĐANG CHẠY...' : 'BẮT ĐẦU'}
                   </button>
                 </form>
               </div>
@@ -485,9 +462,7 @@ export default function Home() {
       </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="shrink-0 py-3 px-8 border-t border-slate-800/40
-        flex items-center justify-between text-[11px] text-slate-600
-        font-['Space_Grotesk'] tracking-widest">
+      <footer className="shrink-0 py-3 px-8 border-t border-slate-800/40 flex items-center justify-between text-[11px] text-slate-600 font-['Space_Grotesk'] tracking-widest">
         <span>© 2026 NILDADEV · Apache-2.0</span>
         <span>LMS360 AUTO SOLVER v2.0</span>
       </footer>
