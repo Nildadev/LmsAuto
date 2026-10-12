@@ -16,13 +16,18 @@ src/
 ├── core/
 │   ├── auth.js       đăng nhập API hcm_login_v3 → JWT (không cần DOM/SSO)
 │   ├── scan.js       quét bài được giao (my_assigned_pending) → URL xem-video
+│   ├── complete.js   quét learn_status TOÀN BỘ khóa → phân loại file vs H5P →
+│   │                 completeFiles(): đánh dấu file (pptx/pdf/doc...) hoàn thành
 │   ├── flow.js       orchestrator: login → scan → solve từng bài → report
+│   │                 (+ parts mode: giải mọi phần H5P còn nợ + markDone)
 │   ├── stealth.js    launch browser + human click/type/scroll + inject token
 │   └── dismiss.js    đóng modal "Chưa đăng ký khuôn mặt"...
 ├── h5p/
 │   ├── extract.js    đọc đáp án từ jsonContent (11 dạng) — thuần logic
 │   ├── answers.js    tìm frame player + readAnswers (xử lý lồng QuestionSet/Book)
 │   ├── solver.js     auto-click đáp án đúng cho từng dạng
+│   ├── doc.js        2 API "bấm nút mắt": view_h5p_content (tăng view) +
+│   │                 learn_status POST status=3 (hoàn thành) + solveDoc
 │   ├── interactiveVideo.js  giải InteractiveVideo (play → poll dialog → submit)
 │   └── book/         điều phối sách online (CoursePresentation/InteractiveBook)
 │       ├── index.js  solveBook/solveCoursePresentation/solveInteractiveBook
@@ -32,14 +37,17 @@ src/
 │       ├── question.js giải 1 element (delegate sang solver/IV)
 │       └── dom.js    helper DOM (visible containers, đọc điểm)
 scripts/
-├── cli.js            `npm run auto` — hỏi tài khoản → runFlow (cờ --dry-run/--limit/--headless/--all)
+├── cli.js            `npm run auto` — hỏi tài khoản → runFlow
+│                     (cờ --dry-run/--limit/--headless/--all/--complete-files/--complete-h5p)
 ├── _token.js         nguồn token dùng chung (env → file cũ → API login) cho script debug
 └── debug-solve.js    test end-to-end trên 1 bài thật
 tests/
-├── extract.test.js   unit test extract trên dữ liệu dump thật (7/7 pass)
-├── book.test.js      unit test schema/question của book (13/13 pass)
-├── auth-scan.test.js unit test auth + scan (mock fetch, 20/20 pass)
-└── flow.test.js      unit test orchestrator (inject deps, 12/12 pass)
+├── extract.test.js   unit test extract trên dữ liệu dump thật (13 cases)
+├── book.test.js      unit test schema/question của book
+├── doc.test.js       unit test 2 API nút mắt + solveDoc (mock fetch, 8/8)
+├── complete.test.js  unit test quét/phân loại/đánh dấu file (mock fetch, 10/10)
+├── auth-scan.test.js unit test auth + scan (mock fetch, 20/20)
+└── flow.test.js      unit test orchestrator (inject deps, 19/19)
 ```
 
 ## Cách chạy
@@ -53,11 +61,13 @@ npm install
 #    (Nếu muốn tái dùng token cũ: truyền {token: '<JWT>'}.)
 
 # 3. Unit test (không cần browser)
-node tests/extract.test.js      # 7/7
-node tests/book.test.js         # 13/13
+node tests/extract.test.js      # 13 cases
+node tests/book.test.js         # schema/question book
+node tests/doc.test.js          # 8/8 (2 API nút mắt + solveDoc)
+node tests/complete.test.js     # 10/10 (quét/phân loại/đánh dấu file)
 node tests/auth-scan.test.js    # 20/20
-node tests/flow.test.js         # 12/12
-npm test                        # chạy tất cả (52 test)
+node tests/flow.test.js         # 19/19 (orchestrator + parts mode + markDone)
+npm test                        # chạy tất cả (6 suite)
 
 # 4. Chạy flow đầy đủ (login → scan → giải từng bài → submit)
 npm run auto                    # hỏi tài khoản/mật khẩu, hiện browser
@@ -149,5 +159,11 @@ riêng sách online có walker điều hướng ở `book.js`.
 - [x] Quét bài được giao qua `my_assigned_pending` (`src/core/scan.js`) → URL xem-video
 - [x] Unit test auth + scan (mock fetch) — 20/20 pass
 - [x] Flow đầy đủ đa bài: login → scan → skip solved/doc-only → solve (CP/IB/IV) → submit (`src/core/flow.js`, `npm run auto`)
-- [x] Unit test orchestrator (inject deps) — 12/12 pass
+- [x] Unit test orchestrator (inject deps) — 19/19 pass
 - [x] Bỏ hẳn `/tmp/token.txt` khỏi script debug (dùng `scripts/_token.js` → `auth.login`)
+- [x] Đánh dấu hoàn thành FILE tài liệu qua 2 API "nút mắt" (`src/h5p/doc.js` +
+      `src/core/complete.js`, `node scripts/cli.js --complete-files`)
+- [x] Giải TOÀN BỘ phần H5P còn nợ + markDone server-side (`--complete-h5p` /
+      parts mode trong `flow.js`) — verify thật: batch 10/11, parts 10+ mark 200 OK
+- [ ] IV dùng **YouTube** (H5P.Video YouTube): không tua/dialog được trong automation
+      → bỏ qua an toàn, báo FAIL để làm tay (vd "Làm mô hình nghệ thuật sắp đặt")
