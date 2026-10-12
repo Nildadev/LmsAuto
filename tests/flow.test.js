@@ -173,6 +173,15 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.items[0].kind, 'doc');
   });
 
+  await checkAsync('solveItem: item.isFile -> solveDoc trực tiếp (KHÔNG mở tab/frame)', async () => {
+    const { d, calls } = fakeDeps();
+    d.findPlayerFrame = async () => { throw new Error('không được gọi findPlayerFrame cho file'); };
+    const r = await solveItem(fakePage, { title: 'Slide.pptx', p: 'P1', cs: 'CS1', isFile: true }, () => {}, { token: 'TOK' }, d);
+    assert.strictEqual(calls.solveDoc, 1, 'phải gọi solveDoc');
+    assert.strictEqual(r.kind, 'doc');
+    assert.strictEqual(r.ok, true);
+  });
+
   await checkAsync('runFlow: solve xong + item co p/cs -> markComplete(p, cs)', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1', p: 'P1', cs: 'CS1' }] });
     const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });

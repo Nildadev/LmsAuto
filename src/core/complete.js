@@ -74,13 +74,17 @@ async function fetchLearnStatus(token, courseId, opts = {}) {
   } catch (_) { return []; }
 }
 
-/** Chi tiết 1 content -> h5p_content hoặc null. */
+/** Chi tiết 1 content -> h5p_content, hoặc {__denied} nếu không có quyền, hoặc null. */
 async function fetchContentDetail(token, h5pContentId, opts = {}) {
   const fetchImpl = opts.fetchImpl || globalThis.fetch;
   const apiBase = opts.apiBase || API_BASE;
   try {
     const r = await postJson(fetchImpl, `${apiBase}/h5p/contents/detail`, token, { h5p_content_id: h5pContentId }, opts.timeoutMs);
-    return (r.ok && r.body && r.body.data && r.body.data.h5p_content) || null;
+    const body = r.body;
+    if (body && Array.isArray(body.errors) && body.errors.length) {
+      return { __denied: true, __error: (body.errors[0] && body.errors[0].message) || 'access denied' };
+    }
+    return (body && body.data && body.data.h5p_content) || null;
   } catch (_) { return null; }
 }
 
@@ -115,6 +119,7 @@ async function scanIncomplete(token, opts = {}) {
       parts.push({
         cs: c.id, courseTitle: c.title, p: v.h5p_content_id, status: v.status,
         title: (detail && detail.title) || '', isFile: classify(detail, v.title),
+        denied: !!(detail && detail.__denied), deniedMsg: (detail && detail.__error) || '',
       });
     }
   }

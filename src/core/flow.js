@@ -101,6 +101,34 @@ async function solveSingle(page, frame, library, logger, d = deps()) {
   const lib = library || raw.library;
   const data = d.extractAnswers(lib, { params: (raw.json.params || raw.json) });
   logger(`  Single ${lib} => ${data ? data.kind : 'unknown'}`);
+  if (!data || data.kind === 'unknown') {
+    // Chẩn đoán: xem cấu trúc json (vd H5P.Column có params.content[] là sub-content).
+    const j = raw.json || {};
+    const params = j.params || j;
+    const c = params.content;
+    logger(`  🐞 single-unknown: lib=${lib} jsonKeys=${JSON.stringify(Object.keys(j))}`
+      + ` contentType=${Array.isArray(c) ? `array[${c.length}]` : typeof c}`
+      + ` firstKeys=${c && c[0] ? JSON.stringify(Object.keys(c[0])) : 'n/a'}`
+      + ` raw=${JSON.stringify(params).slice(0, 1200)}`);
+  }
+  // Nội dung KHÔNG có câu hỏi nào (vd H5P.Column chỉ chứa H5P.Link/Text/Image) ->
+  // chỉ cần "xem" là xong. Dò mọi `library` trong json; nếu không có loại câu hỏi
+  // nào thì đánh dấu hoàn thành thay vì báo lỗi.
+  if (!data || data.kind === 'unknown') {
+    const libs = [];
+    (function walk(n, depth) {
+      if (!n || depth > 5) return;
+      if (Array.isArray(n)) { n.slice(0, 60).forEach((x) => walk(x, depth + 1)); return; }
+      if (typeof n !== 'object') return;
+      if (typeof n.library === 'string') libs.push(n.library);
+      for (const k of Object.keys(n)) { const v = n[k]; if (v && typeof v === 'object') walk(v, depth + 1); }
+    })(raw.json, 0);
+    const hasQ = libs.some((l) => /MultiChoice|SingleChoice|TrueFalse|Blanks|DragText|DragQuestion|MarkTheWords|Summary|QuestionSet|InteractiveVideo|CoursePresentation|InteractiveBook/i.test(l));
+    if (!hasQ) {
+      logger(`  ℹ️ Không có câu hỏi (chỉ cần xem) — nội dung con: ${JSON.stringify(libs.slice(0, 6))}`);
+      return { solved: 0, kind: 'single', library: lib, noQuestions: true };
+    }
+  }
   // solveOne chấp nhận { kind, data } cấp cao nhất.
   const r = await d.solveOne(frame, { kind: data && data.kind, data, library: lib }, logger);
   if (r && r.solved) {
@@ -110,18 +138,45 @@ async function solveSingle(page, frame, library, logger, d = deps()) {
   return { ...r, kind: 'single', library: lib };
 }
 
-/**
- * Giải 1 bài theo URL (mở tab mới, giải, đóng tab). Trả { ok, kind, result }.
- */
+/** Chẩn đoán khi không tìm thấy frame player: liệt kê các frame + dấu hiệu nội dung. */
+async function dumpNoFrame(tab, logger) {
+  const out = [];
+  for (const f of tab.frames()) {
+    try {
+      const s = await f.evaluate(() => ({
+        integ: !!(window.H5PIntegration && window.H5PIntegration.contents),
+        libs: (window.H5PIntegration && window.H5PIntegration.contents)
+          ? Object.values(window.H5PIntegration.contents).map((c) => c.library) : [],
+        nodes: document.querySelectorAll('.h5p-answer, .h5p-container, .h5p-question-content, .h5p-column, .h5p-interactive-video, iframe').length,
+        txt: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 140),
+      }));
+      out.push({ url: f.url().slice(0, 90), ...s });
+    } catch (_) { /* frame detach */ }
+  }
+  logger(`  🐞 no-frame: ${JSON.stringify(out)}`);
+}
 
 /**
  * Giải 1 bài theo URL. Trả { ok, kind, result }.
  */
 async function solveItem(page, item, logger = console.log, opts = {}, d = deps()) {
   const url = typeof item === 'string' ? item : d.videoUrl(item);
+  // Phần FILE tài liệu (.pptx/.pdf/.doc...): KHÔNG cần mở browser — chỉ gọi API
+  // view + learn_status(status=3) để đánh dấu hoàn thành (giống bấm nút "mắt").
+  if (item && typeof item === 'object' && item.isFile && d.solveDoc) {
+    const token = opts.token || d.token || '';
+    logger(`📄 File tài liệu: ${item.title || item.p} -> đánh dấu hoàn thành`);
+    const result = await d.solveDoc(item, token, logger, opts);
+    return { ok: !!result.solved, kind: 'doc', url, result };
+  }
   const { tab, frame } = await openItem(page, url, logger, opts, d);
   const closeTab = async () => { try { await tab.close(); } catch (_) {} };
-  if (!frame) { logger('  ⚠️ Không tìm thấy frame player'); await closeTab(); return { ok: false, kind: 'unknown', url }; }
+  if (!frame) {
+    logger('  ⚠️ Không tìm thấy frame player');
+    await dumpNoFrame(tab, logger).catch(() => {});
+    await closeTab();
+    return { ok: false, kind: 'unknown', url };
+  }
 
   const { kind, library, isDoc } = await d.detectKind(frame);
   logger(`  🔎 Loại: ${kind} (${library || '?'})${isDoc ? ' [tài liệu file]' : ''}`);
@@ -153,7 +208,7 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
       result = { solved: 0, slides: 0, kind };
     }
   }
-  const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%')));
+  const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%') || result.noQuestions));
   await closeTab();
   d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính
   // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
@@ -242,7 +297,7 @@ async function runFlow(opts = {}) {
     let todo = [], summary = {};
     if (opts.parts) {
       const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
-      todo = parts.filter((x) => !x.isFile).map((x) => ({
+      todo = parts.filter((x) => !x.isFile && !x.denied).map((x) => ({
         title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
         p: x.p, c: '', cs: x.cs, status: x.status,
       }));
@@ -257,23 +312,26 @@ async function runFlow(opts = {}) {
       todo = r.todo; summary = r.summary; report.studentName = r.studentName;
 
       // Bổ sung: quét TOÀN BỘ khóa học của lớp (learn_status) để không bỏ sót bài
-      // không nằm trong "việc cần làm". Chỉ thêm phần H5P (file dùng --complete-files).
+      // không nằm trong "việc cần làm". Gồm CẢ phần H5P lẫn phần FILE tài liệu
+      // (file được đánh dấu hoàn thành qua API, không cần mở browser).
       if (opts.scanClass !== false) {
         try {
           const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
           const have = new Set(todo.map((t) => t.p));
-          let added = 0;
+          let added = 0, addedFile = 0, denied = 0;
           for (const x of parts) {
-            if (x.isFile || have.has(x.p)) continue;
+            if (have.has(x.p)) continue;
+            if (x.denied) { denied++; continue; } // bài riêng tư, tài khoản không có quyền -> bỏ qua
             if (blacklist && blacklist.test(`${x.courseTitle || ''} ${x.title || ''}`)) continue;
             todo.push({
               title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
-              p: x.p, c: '', cs: x.cs, status: x.status,
+              p: x.p, c: '', cs: x.cs, status: x.status, isFile: !!x.isFile,
             });
             have.add(x.p);
-            added++;
+            if (x.isFile) addedFile++; else added++;
           }
-          if (added) logger(`➕ Bổ sung ${added} bài từ khóa học của lớp (ngoài việc cần làm)`);
+          if (added || addedFile) logger(`➕ Bổ sung ${added} bài H5P + ${addedFile} file tài liệu từ khóa học của lớp`);
+          if (denied) logger(`🔒 Bỏ qua ${denied} bài riêng tư (không có quyền xem)`);
         } catch (e) {
           logger(`⚠️ Không quét được khóa học của lớp: ${String(e && e.message).slice(0, 120)}`);
         }

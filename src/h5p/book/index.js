@@ -86,6 +86,19 @@ function probeNorm(s) {
 async function solvePage(frame, elements, logger) {
   const qElements = elements.filter((e) => QUESTION_KINDS.has(e.kind));
   let containers = await visibleQuestionContainers(frame);
+  if (!containers.length || !qElements.length) {
+    // Chẩn đoán: xem vì sao trang không có container câu hỏi nào.
+    const domQ = await frame.evaluate(() => ({
+      q: document.querySelectorAll('.h5p-question').length,
+      scs: document.querySelectorAll('.h5p-single-choice-set').length,
+      dt: document.querySelectorAll('.h5p-drag-text').length,
+      sum: document.querySelectorAll('.h5p-summary').length,
+      colContent: document.querySelectorAll('.h5p-column-content').length,
+      elBtn: document.querySelectorAll('.h5p-element-button').length,
+      text: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 120),
+    })).catch(() => null);
+    logger && logger(`  🐞 CP-page: elements=${elements.length} kinds=${JSON.stringify(elements.map((e) => e.kind))} containers=${containers.length} dom=${JSON.stringify(domQ)}`);
+  }
 
   // CoursePresentation: câu hỏi ẩn sau nút popup (vd .h5p-multichoice-button, aria-haspopup=dialog).
   // Bấm nút -> dialog chứa .h5p-question xuất hiện -> giải bằng model tương ứng -> đóng -> nút kế.
@@ -216,7 +229,9 @@ async function solvePage(frame, elements, logger) {
 async function solveCoursePresentation(page, frame, model, logger) {
   const nParts = await cpPartCount(frame);
   const total = nParts || model.pages.length;
-  logger(`CP: ${total} phần (${model.pages.length} slide + Summary)`);
+  // Số câu hỏi thật trong json — nếu = 0 thì đây chỉ là trình chiếu (xem là xong).
+  const totalQ = (model.pages || []).reduce((n, pg) => n + (((pg && pg.elements) || []).filter((e) => QUESTION_KINDS.has(e.kind)).length), 0);
+  logger(`CP: ${total} phần (${model.pages.length} slide + Summary)${totalQ === 0 ? ' — không có câu hỏi (chỉ cần xem)' : ''}`);
   let solvedSlides = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
@@ -230,7 +245,7 @@ async function solveCoursePresentation(page, frame, model, logger) {
   }
   const finalScore = await readFinalScore(frame);
   logger(`CP done: ${solvedSlides}/${total} slide đúng | final=${JSON.stringify(finalScore)}`);
-  return { solved: solvedSlides, slides: total, details, finalScore, kind: model.kind };
+  return { solved: solvedSlides, slides: total, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
 }
 
 /** Giải InteractiveBook: mở sách, lật từng trang bằng "Trang tiếp theo". */
