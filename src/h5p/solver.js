@@ -309,6 +309,84 @@ async function countVisible(frame, sel) {
   return frame.evaluate((s) => [...document.querySelectorAll(s)].filter(e => e && e.offsetParent !== null).length, sel);
 }
 
+/* ── Retry khi câu SAI ──────────────────────────────────────────────────────
+ * H5P chỉ cho "Làm lại/Thử lại" khi behaviour.enableRetry = true. Khi đó, sau
+ * khi trả lời sai sẽ hiện nút .h5p-question-try-again (hoặc nhãn "Làm lại"/
+ * "Thử lại"). Ta bấm nút đó để reset câu hỏi rồi trả lời lại — thay vì bỏ luôn
+ * câu sai và báo bài "chưa hoàn thành". */
+
+/** Có nút "Làm lại/Thử lại" trong scope không. */
+async function retryAvailable(root) {
+  for (const s of ['.h5p-question-try-again:visible', '.h5p-question-retry:visible', '.h5p-question-try-again-button:visible']) {
+    if (await root.locator(s).count().catch(() => 0)) return true;
+  }
+  for (const t of ['Làm lại', 'Thử lại', 'Làm lại lần nữa', 'Try again', 'Retry']) {
+    if (await root.locator(`button:has-text("${t}"):visible`).first().count().catch(() => 0)) return true;
+  }
+  return false;
+}
+
+/** Bấm nút "Làm lại/Thử lại" (reset câu hỏi để trả lời lại). Trả true nếu bấm được. */
+async function pressRetry(root, logger) {
+  const direct = root.locator('.h5p-question-try-again:visible, .h5p-question-retry:visible, .h5p-question-try-again-button:visible').first();
+  if (await direct.count().catch(() => 0)) { await humanClick(root, direct).catch(() => {}); logger && logger('  retry: bấm "Làm lại"'); return true; }
+  for (const t of ['Làm lại', 'Thử lại', 'Làm lại lần nữa', 'Try again', 'Retry']) {
+    const b = root.locator(`button:has-text("${t}"):visible`).first();
+    if (await b.count().catch(() => 0)) { await humanClick(root, b).catch(() => {}); logger && logger(`  retry: bấm "${t}"`); return true; }
+  }
+  return false;
+}
+
+/** Bấm TẤT CẢ nút "Làm lại" đang hiện trong scope (dialog có thể có nhiều câu sai). */
+async function pressAllRetries(root, logger) {
+  const sels = '.h5p-question-try-again:visible, .h5p-question-retry:visible, .h5p-question-try-again-button:visible';
+  let n = await root.locator(sels).count().catch(() => 0);
+  for (let i = 0; i < n; i++) { await humanClick(root, root.locator(sels).nth(i)).catch(() => {}); await sleep(120); }
+  if (!n) {
+    for (const t of ['Làm lại', 'Thử lại', 'Try again', 'Retry']) {
+      const b = root.locator(`button:has-text("${t}"):visible`).first();
+      if (await b.count().catch(() => 0)) { await humanClick(root, b).catch(() => {}); n = 1; break; }
+    }
+  }
+  if (n) logger && logger(`  retry: bấm ${n} nút "Làm lại"`);
+  return n;
+}
+
+/**
+ * Trả lời 1 câu CÓ cơ chế thử lại khi sai (nếu H5P cho phép).
+ * @param {object} o
+ * @param {function} o.attempt   (n) => áp đáp án
+ * @param {function} [o.check]   (n) => bấm "Kiểm tra"
+ * @param {function} o.feedback  () => { correct, wrong, ... }
+ * @param {function} [o.retry]   (n) => bấm "Làm lại" (reset); trả true nếu được
+ * @param {number}   [o.maxAttempts=3]
+ * @returns {Promise<{solved:boolean, attempts:number, correct:number, wrong:number}>}
+ * Chỉ solved=true khi wrong===0 && correct>0. Dừng sớm khi số câu sai KHÔNG giảm
+ * (tránh lặp vô ích) hoặc hết maxAttempts / không còn nút làm lại.
+ */
+async function answerWithRetry({ attempt, check, feedback, retry, maxAttempts = 3, logger = () => {} }) {
+  let prevWrong = Infinity;
+  let last = { correct: 0, wrong: 0 };
+  let n = 0;
+  for (n = 1; n <= maxAttempts; n++) {
+    await attempt(n);
+    if (check) await check(n);
+    const fb = (await feedback()) || {};
+    const correct = fb.correct || 0;
+    const wrong = fb.wrong || 0;
+    last = { ...fb, correct, wrong };
+    logger(`  retry ${n}/${maxAttempts}: correct=${correct} wrong=${wrong}`);
+    if (wrong === 0 && correct > 0) return { solved: true, attempts: n, ...last };
+    if (n > 1 && wrong >= prevWrong) { logger('  retry: số câu sai không giảm -> dừng'); break; }
+    prevWrong = wrong;
+    if (n < maxAttempts) {
+      const ok = retry ? await retry(n) : false;
+      if (!ok) { logger('  retry: không có nút "Làm lại" -> dừng'); break; }
+    }
+  }
+  return { solved: false, reason: 'wrong', attempts: n, ...last };
+}
+
 /**
  * Giải 1 QuestionSet: duyệt từng câu, giải ĐÚNG để "Câu tiếp theo" xuất hiện.
  * Trả về thống kê để ước tính điểm.
@@ -334,26 +412,28 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
     attempted++;
     logger(`step ${step}: ${sub?.library || '?'} (choice=${hasChoice} input=${hasInput} drag=${hasDrag})`);
 
-    let r = { solved: false };
-    try {
-      if (hasChoice > 0) r = await solveChoice(frame, item, logger);
-      else if (hasInput > 0) r = await solveBlanks(frame, item, logger);
-      else if (hasDrag > 0) r = await solveDrag(frame, item, logger);
-    } catch (e) { logger('  solve lỗi:', e.message.slice(0, 40)); }
-
-    await sleep(400);
-    await pressCheck(frame, logger);
-    await sleep(1200);
-
-    // Đếm correct/wrong ĐÚNG cách: lọc offsetParent thủ công (KHÔNG dùng :visible — không phải CSS).
-    const res = await frame.evaluate(() => {
+    const attemptFn = async () => {
+      if (hasChoice > 0) return solveChoice(frame, item, logger);
+      if (hasInput > 0) return solveBlanks(frame, item, logger);
+      if (hasDrag > 0) return solveDrag(frame, item, logger);
+      return { solved: false };
+    };
+    const checkFn = async () => { await sleep(400); await pressCheck(frame, logger); await sleep(1200); };
+    const fbFn = async () => frame.evaluate(() => {
       const vis = (sel) => [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null).length;
       return { wrong: vis('.h5p-wrong'), correct: vis('.h5p-correct') };
     }).catch(() => ({}));
-    const isCorrect = (res.wrong === 0 && res.correct > 0);
+    const retryFn = async () => { const ok = await pressRetry(frame, logger); if (ok) await sleep(900); return ok; };
+
+    let rr = { solved: false, correct: 0, wrong: 0 };
+    try {
+      rr = await answerWithRetry({ attempt: attemptFn, check: checkFn, feedback: fbFn, retry: retryFn, maxAttempts: 3, logger });
+    } catch (e) { logger('  solve lỗi:', e.message.slice(0, 40)); }
+
+    const isCorrect = !!rr.solved;
     if (isCorrect) correctCount++;
     const hasNext = await pressNext(frame, logger);
-    logger(`  result=${JSON.stringify(res)} correct=${isCorrect} next=${hasNext}`);
+    logger(`  result=${JSON.stringify({ correct: rr.correct, wrong: rr.wrong, attempts: rr.attempts })} correct=${isCorrect} next=${hasNext}`);
     if (hasNext) { await sleep(1000); }
     else {
       // Sai -> thử "Đáp án" rồi Next (sang câu sau nhưng không tính điểm)
@@ -402,4 +482,4 @@ async function solveOne(frame, item, logger) {
   return { solved: false, reason: 'unsupported:' + kind };
 }
 
-module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, solveQuestionSet, countVisible, waitSel, normalizeText };
+module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, pressRetry, pressAllRetries, retryAvailable, answerWithRetry, solveQuestionSet, countVisible, waitSel, normalizeText };

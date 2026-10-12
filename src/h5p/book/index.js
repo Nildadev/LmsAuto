@@ -20,6 +20,7 @@ const { cpPartCount, cpGoto, openInteractiveBook, ibPageState, ibNext, ibSubmit 
 const { solveElement } = require('./question');
 const { solveVideo } = require('../interactiveVideo');
 const { readFeedback, pressCheckIn } = require('./dom');
+const { answerWithRetry, pressRetry } = require('../solver');
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -209,14 +210,19 @@ async function solvePage(frame, elements, logger) {
     const slot = findContainer(el);
     if (!slot) { details.push({ k, kind: el.kind, base: el.base, note: 'no-container' }); continue; }
     const container = containers[slot.c];
-    const r = await solveElement(frame, container, el, logger).catch((e) => ({ solved: false, err: e.message }));
-    if (r && r.solved) filled++;
-    // Bấm "Kiểm tra" NGAY TRONG container này (mỗi câu có nút riêng).
-    await pressCheckIn(container, logger).catch(() => {});
-    await sleep(900);
-    const fb = await readFeedback(container);
-    good += fb.correct; wrong += fb.wrong;
-    details.push({ k, kind: el.kind, base: el.base, via: slot.via, solved: !!(r && r.solved), ...fb });
+    // Trả lời + THỬ LẠI nếu sai (khi H5P cho phép "Làm lại"). Chỉ tính đúng khi
+    // wrong===0 && correct>0 -> tránh báo hoàn thành dù trả lời sai.
+    const rr = await answerWithRetry({
+      attempt: () => solveElement(frame, container, el, logger),
+      check: async () => { await pressCheckIn(container, logger).catch(() => {}); await sleep(900); },
+      feedback: () => readFeedback(container),
+      retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(700); return ok; },
+      maxAttempts: 3,
+      logger,
+    }).catch((e) => ({ solved: false, correct: 0, wrong: 0, err: String(e.message) }));
+    if (rr && rr.solved) filled++;
+    good += rr.correct || 0; wrong += rr.wrong || 0;
+    details.push({ k, kind: el.kind, base: el.base, via: slot.via, solved: !!rr.solved, attempts: rr.attempts, correct: rr.correct, wrong: rr.wrong });
     await sleep(200);
   }
   for (let c = 0; c < containers.length; c++) {

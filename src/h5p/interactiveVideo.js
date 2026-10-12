@@ -6,7 +6,7 @@
  */
 const { sleep, humanDelay, humanClick } = require('../core/stealth');
 const { extractAnswers } = require('./extract');
-const { solveBlanks, solveDragText } = require('./solver');
+const { solveBlanks, solveDragText, pressAllRetries } = require('./solver');
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -684,92 +684,107 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     }
     logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${activeFrom}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
     {
-      // Giải TẤT CẢ interaction trong dialog tại mốc này.
-
-      // (1) SUMMARY — nằm ở cấp dialog (.h5p-summary), KHÔNG nằm trong .h5p-question con.
-      const sumBox = frame.locator('.h5p-summary').first();
-      const nSumRows = await sumBox.locator('li[data-bit]').count().catch(() => 0);
-      if (nSumRows) {
-        const ex = group.find(g => g.kind === 'summary');
-        if (ex && ex.extracted) {
-          logger(`  summary: ${nSumRows} rows`);
-          await answerSummaryInPopup(frame, sumBox, ex.extracted, logger);
-          await sleep(300);
+      // Giải TẤT CẢ interaction trong dialog tại mốc này. Gói thành 1 hàm để có thể
+      // TRẢ LỜI LẠI khi phát hiện câu SAI mà H5P cho phép "Làm lại".
+      const answerOnce = async () => {
+        // (1) SUMMARY — nằm ở cấp dialog (.h5p-summary), KHÔNG nằm trong .h5p-question con.
+        const sumBox = frame.locator('.h5p-summary').first();
+        const nSumRows = await sumBox.locator('li[data-bit]').count().catch(() => 0);
+        if (nSumRows) {
+          const ex = group.find(g => g.kind === 'summary');
+          if (ex && ex.extracted) {
+            logger(`  summary: ${nSumRows} rows`);
+            await answerSummaryInPopup(frame, sumBox, ex.extracted, logger);
+            await sleep(300);
+          }
         }
-      }
 
-      // (2) CHOICE — gán đáp án THEO VỊ TRÍ cho từng MC container (tránh dùng chung).
-      // (2a) SingleChoiceSet: dạng .h5p-single-choice-set, click là chấm điểm ngay.
-      const scBox = frame.locator('.h5p-single-choice-set:visible').first();
-      if (await scBox.count().catch(() => 0)) {
-        const scEx = (group.find(g => g.kind === 'choice') || {}).extracted;
-        await answerSingleChoiceSet(frame, scEx, logger);
-        await sleep(400);
-      }
-      // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
-      // Chỉ lấy kind 'choice' (blanks/dragtext xử lý riêng ở (2b-2)) để index
-      // không lệch khi dialog trộn nhiều loại.
-      const choices = group.filter(g => g.kind === 'choice');
-      const qcs = frame.locator('.h5p-question:visible');
-      const nQc = await qcs.count().catch(() => 0);
-      let mcIndex = 0;
-      for (let q = 0; q < nQc && mcIndex < choices.length; q++) {
-        const qc = qcs.nth(q);
-        const nAns = await qc.locator('.h5p-answer').count().catch(() => 0);
-        if (nAns) {
-          const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger, choices[mcIndex].library);
-          mcIndex++;
-          // Bấm Kiểm tra NGAY trong container này (nút enabled sau khi có lựa chọn).
-          if (r.solved) await pressCheckIn(frame, qc, logger);
+        // (2) CHOICE — gán đáp án THEO VỊ TRÍ cho từng MC container (tránh dùng chung).
+        // (2a) SingleChoiceSet: dạng .h5p-single-choice-set, click là chấm điểm ngay.
+        const scBox = frame.locator('.h5p-single-choice-set:visible').first();
+        if (await scBox.count().catch(() => 0)) {
+          const scEx = (group.find(g => g.kind === 'choice') || {}).extracted;
+          await answerSingleChoiceSet(frame, scEx, logger);
+          await sleep(400);
         }
-      }
-      await sleep(300);
-
-      // (2b-2) Blanks / DragText lồng trong IV: KHÔNG có .h5p-answer nên (2b) bỏ qua.
-      // Phải điền ô trống (input) hoặc kéo-thả từ; nếu không H5P không ghi nhận câu trả lời.
-      const blanksEls = group.filter(g => g.kind === 'blanks');
-      if (blanksEls.length && !(await frame.locator('.h5p-mark-the-words:visible').count().catch(() => 0))) {
-        const b = blanksEls[0];
-        const box = frame.locator('.h5p-blanks:visible, .h5p-drag-text:visible').first();
-        if (await box.count().catch(() => 0)) {
-          const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
-          if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
+        // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
+        // Chỉ lấy kind 'choice' (blanks/dragtext xử lý riêng ở (2b-2)) để index
+        // không lệch khi dialog trộn nhiều loại.
+        const choices = group.filter(g => g.kind === 'choice');
+        const qcs = frame.locator('.h5p-question:visible');
+        const nQc = await qcs.count().catch(() => 0);
+        let mcIndex = 0;
+        for (let q = 0; q < nQc && mcIndex < choices.length; q++) {
+          const qc = qcs.nth(q);
+          const nAns = await qc.locator('.h5p-answer').count().catch(() => 0);
+          if (nAns) {
+            const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger, choices[mcIndex].library);
+            mcIndex++;
+            // Bấm Kiểm tra NGAY trong container này (nút enabled sau khi có lựa chọn).
+            if (r.solved) await pressCheckIn(frame, qc, logger);
+          }
         }
-      }
+        await sleep(300);
 
-      // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
-      //      nhánh (2b) bỏ qua. Phải bấm từng từ `span[role=option]` khớp đáp án
-      //      rồi Kiểm tra — nếu không H5P không ghi nhận câu trả lời và nội dung
-      //      không bao giờ hoàn thành (bài video + tài liệu kẹt 50%).
-      const mtwBox = frame.locator('.h5p-mark-the-words:visible').first();
-      if (await mtwBox.count().catch(() => 0)) {
-        const mtwEx = (group.find(g => g.kind === 'blanks') || {}).extracted;
-        const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
-        if (rMtw.solved) await pressCheckIn(frame, mtwBox, logger);
-      }
-      await sleep(300);
-
-      // Bấm nốt các nút Kiểm tra/Gửi còn đang visible (fallback, vd summary-submit).
-      const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
-      const nChk = await checks.count().catch(() => 0);
-      for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(200); }
-      logger(`  đã bấm ${nChk} nút kiểm tra @${stop}s`);
-      await sleep(900);
-
-      // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
-      const fb = await frame.evaluate(() => {
-        const qs = [...document.querySelectorAll('.h5p-question')];
-        let ok = 0, bad = 0, det = [];
-        for (const q of qs) {
-          const good = q.querySelectorAll('.h5p-correct, .multichoice-tip.h5p-correct, .h5p-question-plus-one').length;
-          const wrong = q.querySelectorAll('.h5p-wrong, .multichoice-tip.h5p-wrong').length;
-          ok += good; bad += wrong;
-          det.push(`g${good}/w${wrong}`);
+        // (2b-2) Blanks / DragText lồng trong IV: KHÔNG có .h5p-answer nên (2b) bỏ qua.
+        // Phải điền ô trống (input) hoặc kéo-thả từ; nếu không H5P không ghi nhận câu trả lời.
+        const blanksEls = group.filter(g => g.kind === 'blanks');
+        if (blanksEls.length && !(await frame.locator('.h5p-mark-the-words:visible').count().catch(() => 0))) {
+          const b = blanksEls[0];
+          const box = frame.locator('.h5p-blanks:visible, .h5p-drag-text:visible').first();
+          if (await box.count().catch(() => 0)) {
+            const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
+            if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
+          }
         }
-        const bar = document.querySelector('.h5p-joubelui-score-bar-progress, .h5p-score-bar-progress');
-        return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
-      }).catch(() => ({}));
-      logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
+
+        // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
+        //      nhánh (2b) bỏ qua. Phải bấm từng từ `span[role=option]` khớp đáp án
+        //      rồi Kiểm tra — nếu không H5P không ghi nhận câu trả lời và nội dung
+        //      không bao giờ hoàn thành (bài video + tài liệu kẹt 50%).
+        const mtwBox = frame.locator('.h5p-mark-the-words:visible').first();
+        if (await mtwBox.count().catch(() => 0)) {
+          const mtwEx = (group.find(g => g.kind === 'blanks') || {}).extracted;
+          const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
+          if (rMtw.solved) await pressCheckIn(frame, mtwBox, logger);
+        }
+        await sleep(300);
+
+        // Bấm nốt các nút Kiểm tra/Gửi còn đang visible (fallback, vd summary-submit).
+        const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
+        const nChk = await checks.count().catch(() => 0);
+        for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(200); }
+        logger(`  đã bấm ${nChk} nút kiểm tra @${stop}s`);
+        await sleep(900);
+
+        // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
+        const fb = await frame.evaluate(() => {
+          const qs = [...document.querySelectorAll('.h5p-question')];
+          let ok = 0, bad = 0, det = [];
+          for (const q of qs) {
+            const good = q.querySelectorAll('.h5p-correct, .multichoice-tip.h5p-correct, .h5p-question-plus-one').length;
+            const wrong = q.querySelectorAll('.h5p-wrong, .multichoice-tip.h5p-wrong').length;
+            ok += good; bad += wrong;
+            det.push(`g${good}/w${wrong}`);
+          }
+          const bar = document.querySelector('.h5p-joubelui-score-bar-progress, .h5p-score-bar-progress');
+          return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
+        }).catch(() => ({}));
+        logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
+        return fb;
+      };
+
+      let fb = await answerOnce();
+      // Có câu SAI + H5P cho "Làm lại" -> bấm làm lại rồi trả lời lại (tối đa 3 lần).
+      // Dừng sớm khi số câu sai KHÔNG giảm (tránh lặp vô ích).
+      for (let attempt = 2; attempt <= 3 && fb.bad > 0; attempt++) {
+        const nRetry = await pressAllRetries(frame, logger);
+        if (!nRetry) { logger(`  retry: không có nút "Làm lại" -> chấp nhận ${fb.bad} câu sai`); break; }
+        await sleep(800);
+        const fb2 = await answerOnce();
+        if (fb2.bad >= fb.bad) { fb = fb2; logger('  retry: số câu sai không giảm -> dừng'); break; }
+        fb = fb2;
+      }
       // CHỈ tính "đã giải" khi KHÔNG có câu nào sai. Trước đây tăng vô điều kiện
       // nên 1 câu (dù sai/bỏ trống) là cả bài được tính xong.
       if (fb.bad > 0) logger(`  ⚠️ mốc ${stop}s có ${fb.bad} câu SAI — không tính là đã giải`);

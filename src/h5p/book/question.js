@@ -33,7 +33,6 @@ async function solveChoice(root, container, extracted, logger) {
   if (!visible.length) return { solved: false, reason: 'no-visible-answer' };
 
   const want = ((extracted.data || extracted).correctTexts || []).map(norm).filter(Boolean);
-  const isMulti = /MultiChoice/.test(extracted.library || '');
 
   const toClick = [];
   if (want.length) {
@@ -43,8 +42,10 @@ async function solveChoice(root, container, extracted, logger) {
       if (hit && !toClick.includes(hit.i)) toClick.push(hit.i);
     }
   } else {
-    // Không extract được -> brute-force: chọn hết (multi) hoặc cái đầu.
-    toClick.push(...(isMulti ? visible.map((v) => v.i) : [visible[0].i]));
+    // Không trích được đáp án -> KHÔNG đoán (trước đây chọn hết/cái đầu -> trả lời
+    // sai nhưng vẫn báo solved, khiến bài "hoàn thành" oan).
+    logger && logger('  choice: không có đáp án trích được -> bỏ qua');
+    return { solved: false, reason: 'no-answers', visible: visible.length };
   }
 
   let clicked = 0;
