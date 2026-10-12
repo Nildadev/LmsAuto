@@ -79,8 +79,6 @@ async function launch(opts = {}) {
     '--disable-blink-features=AutomationControlled',
     '--no-sandbox',
     '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--disable-software-rasterizer',
     '--disable-extensions',
     '--mute-audio',
     '--hide-scrollbars',
@@ -90,6 +88,12 @@ async function launch(opts = {}) {
     '--disable-renderer-backgrounding',
     '--disable-features=Translate,BackForwardCache,MediaRouter,OptimizationHints,AcceptCHFrame',
   ];
+  // KHÔNG dùng --disable-gpu/--disable-software-rasterizer nữa: để Chromium tận dụng
+  // GPU/SwiftShader -> giảm tải CPU khi decode video + encode screencast. Nếu host
+  // không có GPU mà render lỗi, đặt LMS_CHROMIUM_DISABLE_GPU=1 để bật lại.
+  if (process.env.LMS_CHROMIUM_DISABLE_GPU === '1') {
+    args.push('--disable-gpu', '--disable-software-rasterizer');
+  }
   if (lowMemory) {
     args.push(
       '--single-process',
