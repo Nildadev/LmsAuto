@@ -19,6 +19,7 @@ const { findPlayerFrame, collectH5P } = require('../h5p/answers');
 const { extractAnswers } = require('../h5p/extract');
 const { solveBook } = require('../h5p/book');
 const { solveVideo } = require('../h5p/interactiveVideo');
+const { solveExerciseList } = require('../h5p/lessonList');
 const { solveOne, pressCheck } = require('../h5p/solver');
 const { solveDoc } = require('../h5p/doc');
 const { markComplete } = require('../h5p/doc');
@@ -30,6 +31,7 @@ const DEFAULT_WAIT_MS = 7000;
 function deps(overrides = {}) {
   return {
     launch, sleep, scanAll, videoUrl, dismissAll, findPlayerFrame, solveBook, solveVideo,
+    solveExerciseList,
     solveOne, pressCheck, collectH5P, extractAnswers,
     solveSingle, newTab: null,
     solveDoc, detectKind, DEFAULT_BLACKLIST,
@@ -140,8 +142,16 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     const token = opts.token || d.token || '';
     result = await d.solveDoc(item, token, logger, opts);
   } else {
-    logger('  ⚠️ Không nhận diện được loại H5P');
-    result = { solved: 0, slides: 0, kind };
+    // Có thể là bài "nhiều bài tập tương tác" (khối BÀI TẬP TƯƠNG TÁC trong frame).
+    const listRes = d.solveExerciseList
+      ? await d.solveExerciseList(tab, frame, logger, opts, d).catch(() => null)
+      : null;
+    if (listRes && listRes.solved > 0) {
+      result = { solved: listRes.solved, slides: listRes.total, kind: 'list' };
+    } else {
+      logger('  ⚠️ Không nhận diện được loại H5P');
+      result = { solved: 0, slides: 0, kind };
+    }
   }
   const ok = !!(result && (result.solved > 0 || (result.finalScore && result.finalScore.bar === '100%')));
   await closeTab();
@@ -209,8 +219,11 @@ async function runFlow(opts = {}) {
           }
           try { await client.send('Page.screencastFrameAck', { sessionId: f.sessionId }); } catch (_) {}
         });
+        const vp = (pg.viewportSize && pg.viewportSize()) || null;
         await client.send('Page.startScreencast', {
-          format: 'jpeg', quality: 50, maxWidth: 1100, maxHeight: 700, everyNthFrame: 1,
+          format: 'jpeg', quality: 50,
+          maxWidth: vp ? vp.width : 1366, maxHeight: vp ? vp.height : 768, // = size cửa sổ Chromium
+          everyNthFrame: 1,
         });
         boundPage = pg;
       } catch (_) { client = null; boundPage = null; }
