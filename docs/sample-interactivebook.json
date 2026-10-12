@@ -1,0 +1,1799 @@
+{
+ "showCoverPage": true,
+ "bookCover": {
+  "coverDescription": "<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+  "coverMedium": {
+   "params": {
+    "decorative": false,
+    "contentName": "Hình ảnh",
+    "expandImage": "Mở rộng hình ảnh",
+    "minimizeImage": "Thu nhỏ hình ảnh",
+    "file": {
+     "path": "images/image-BcboUTjk.png",
+     "mime": "image/png",
+     "size": 368390,
+     "copyright": {
+      "license": "U"
+     },
+     "width": 366,
+     "height": 513
+    }
+   },
+   "library": "H5P.Image 1.1",
+   "metadata": {
+    "contentType": "Hình ảnh",
+    "license": "U",
+    "title": "Không có tiêu đề Hình ảnh",
+    "authors": [],
+    "changes": []
+   },
+   "subContentId": "fa6a42d2-da85-44a1-91de-b92be6c11085"
+  }
+ },
+ "chapters": [
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "presentation": {
+         "slides": [
+          {
+           "elements": [
+            {
+             "x": 0,
+             "y": 0,
+             "width": 99.99407265774379,
+             "height": 99.99244598882008,
+             "action": {
+              "library": "H5P.Image 1.1",
+              "params": {
+               "decorative": false,
+               "contentName": "Hình ảnh",
+               "expandImage": "Mở rộng hình ảnh",
+               "minimizeImage": "Thu nhỏ hình ảnh",
+               "file": {
+                "path": "images/image-5AUj5ZyT.png",
+                "mime": "image/png",
+                "size": 263528,
+                "copyright": {
+                 "license": "U"
+                },
+                "width": 1158,
+                "height": 648
+               }
+              },
+              "subContentId": "89c5b79b-6699-4d76-a1f0-e5ecea377515",
+              "metadata": {
+               "contentType": "Hình ảnh",
+               "license": "U",
+               "title": "Không có tiêu đề Hình ảnh",
+               "authors": [],
+               "changes": []
+              }
+             },
+             "alwaysDisplayComments": false,
+             "backgroundOpacity": 0,
+             "displayAsButton": false,
+             "buttonSize": "big",
+             "goToSlideType": "specified",
+             "invisible": false,
+             "solution": "<div class=\"table-overflow-protection\"></div>"
+            }
+           ],
+           "keywords": [],
+           "slideBackgroundSelector": {}
+          }
+         ],
+         "keywordListEnabled": true,
+         "globalBackgroundSelector": {},
+         "keywordListAlwaysShow": false,
+         "keywordListAutoHide": false,
+         "keywordListOpacity": 90
+        },
+        "override": {
+         "activeSurface": false,
+         "hideSummarySlide": false,
+         "summarySlideSolutionButton": true,
+         "summarySlideRetryButton": true,
+         "enablePrintButton": false,
+         "social": {
+          "showFacebookShare": false,
+          "facebookShare": {
+           "url": "@currentpageurl",
+           "quote": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl."
+          },
+          "showTwitterShare": false,
+          "twitterShare": {
+           "statement": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl.",
+           "url": "@currentpageurl",
+           "hashtags": "h5p, Kurs"
+          },
+          "showGoogleShare": false,
+          "googleShareUrl": "@currentpageurl"
+         }
+        },
+        "l10n": {
+         "slide": "Trang",
+         "score": "Điểm",
+         "yourScore": "Điểm của bạn",
+         "maxScore": "Điểm tối đa",
+         "total": "Tổng",
+         "totalScore": "Tổng điểm",
+         "showSolutions": "Hiển thị giải pháp",
+         "retry": "Làm lại",
+         "exportAnswers": "Xuất văn bản",
+         "hideKeywords": "Ẩn danh sách từ khóa",
+         "showKeywords": "Hiển thị danh sách từ khóa",
+         "fullscreen": "Toàn màn hình",
+         "exitFullscreen": "Kết thúc toàn màn hình",
+         "prevSlide": "Trang trước",
+         "nextSlide": "Trang tiếp theo",
+         "currentSlide": "Trang hiện tại",
+         "lastSlide": "Trang cuối cùng",
+         "solutionModeTitle": "Kết thúc chế độ giải pháp",
+         "solutionModeText": "Chế độ giải pháp",
+         "summaryMultipleTaskText": "Nhiều bài tập",
+         "scoreMessage": "Bạn đã đạt:",
+         "shareFacebook": "Chia sẻ trên Facebook",
+         "shareTwitter": "Chia sẻ trên Twitter",
+         "shareGoogle": "Chia sẻ trên Google+",
+         "summary": "Tóm tắt",
+         "solutionsButtonTitle": "Hiển thị bình luận",
+         "printTitle": "In",
+         "printIngress": "Bạn muốn in bản trình bày này như thế nào?",
+         "printAllSlides": "In tất cả trang",
+         "printCurrentSlide": "In trang hiện tại",
+         "noTitle": "Không có tiêu đề",
+         "accessibilitySlideNavigationExplanation": "Sử dụng phím mũi tên trái hoặc phải để chuyển đến trang theo chiều mũi tên, khi vùng trình bày được chọn.",
+         "accessibilityCanvasLabel": "Vùng trình bày. Sử dụng phím mũi tên trái hoặc phải để di chuyển giữa các trang.",
+         "accessibilityProgressBarLabel": "Chọn hình ảnh muốn hiển thị",
+         "containsNotCompleted": "@slideName chứa một tương tác chưa hoàn thành",
+         "containsCompleted": "@slideName đã hoàn thành",
+         "slideCount": "Trang số @index trong tổng số @total",
+         "containsOnlyCorrect": "@slideName chỉ chứa câu trả lời đúng",
+         "containsIncorrectAnswers": "@slideName chứa câu trả lời sai",
+         "shareResult": "Chia sẻ kết quả",
+         "accessibilityTotalScore": "Bạn đã đạt tổng cộng @score trên @maxScore điểm.",
+         "accessibilityEnteredFullscreen": "Toàn màn hình được kích hoạt",
+         "accessibilityExitedFullscreen": "Toàn màn hình bị vô hiệu hóa",
+         "confirmDialogHeader": "Gửi câu trả lời",
+         "confirmDialogText": "Những kết quả của bạn sẽ được gửi đi. Bạn muốn tiếp tục chứ?",
+         "confirmDialogConfirmText": "Gửi và xem kết quả",
+         "slideshowNavigationLabel": "Điều hướng hình ảnh",
+         "confirmDialogConfirmLabel": "Xác nhận",
+         "confirmDialogCancelLabel": "Huỷ"
+        }
+       },
+       "library": "H5P.CoursePresentation 1.26",
+       "metadata": {
+        "contentType": "Slide tương tác",
+        "license": "U",
+        "title": "Không có tiêu đề Slide tương tác",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Slide tương tác"
+       },
+       "subContentId": "54c79490-9d03-4e38-9115-56286e1ea488"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Hình lăng trụ tam giác.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Hình chóp tam giác.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Hình hộp chữ nhật.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Hình cầu.</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         },
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 1:</strong> Lăng kính là một khối chất trong suốt, đồng chất có dạng:&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "35173d87-b902-42b4-b624-ce3f3a214095"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Góc chiết quang.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Góc khúc xạ.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Góc tới.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div><div></div>"
+          },
+          "text": "<p>Góc lệch.</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 2: </strong>Trong cấu tạo của lăng kính, góc hợp bởi hai mặt bên được gọi là:&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "422203f4-3634-4fa9-b920-ea76e9346d09"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "873c5f6c-3c6d-4897-ae32-d0553f6a39ce",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Cấu tạo của lăng kính",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Cấu tạo của lăng kính"
+   }
+  },
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "interactiveVideo": {
+         "video": {
+          "startScreenOptions": {
+           "title": "Video tương tác",
+           "hideStartTitle": false
+          },
+          "textTracks": {
+           "videoTrack": [
+            {
+             "label": "Phụ đề",
+             "kind": "subtitles",
+             "srcLang": "en"
+            }
+           ]
+          },
+          "files": [
+           {
+            "path": "videos/video-xGYtA2MP.mp4",
+            "mime": "video/mp4",
+            "copyright": {
+             "license": "U"
+            },
+            "size": 2776230
+           }
+          ]
+         },
+         "assets": {
+          "interactions": [
+           {
+            "x": 12.558869701726845,
+            "y": 16.745182969032573,
+            "width": 28.962875,
+            "height": 15.625,
+            "duration": {
+             "from": 62,
+             "to": 66
+            },
+            "libraryTitle": "Câu hỏi Đúng/Sai",
+            "action": {
+             "library": "H5P.TrueFalse 1.8",
+             "params": {
+              "media": {
+               "disableImageZooming": false
+              },
+              "correct": "true",
+              "behaviour": {
+               "enableRetry": true,
+               "enableSolutionsButton": false,
+               "enableCheckButton": true,
+               "confirmCheckDialog": false,
+               "confirmRetryDialog": false,
+               "autoCheck": false
+              },
+              "l10n": {
+               "trueText": "Đúng",
+               "falseText": "Sai",
+               "score": "Bạn đạt được @score trong @total số điểm",
+               "checkAnswer": "Kiểm tra",
+               "submitAnswer": "Gửi",
+               "showSolutionButton": "Đáp án",
+               "tryAgain": "Làm lại",
+               "wrongAnswerMessage": "Câu trả lời sai",
+               "correctAnswerMessage": "Câu trả lời đúng",
+               "scoreBarLabel": "Bạn dạt được :num trong :total số điểm",
+               "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là đúng, không chính xác hoặc chưa được trả lời.",
+               "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+               "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ."
+              },
+              "confirmCheck": {
+               "header": "Thông báo xác nhận kết thúc bài tập",
+               "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+               "cancelLabel": "Quay lại",
+               "confirmLabel": "Kết thúc"
+              },
+              "confirmRetry": {
+               "header": "Làm lại",
+               "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+               "cancelLabel": "Hủy",
+               "confirmLabel": "Có"
+              },
+              "question": "<p><span style=\"color:#000000;\"><strong>Câu 3:</strong> Ánh sáng trắng là hỗn hợp của vô số ánh sáng đơn sắc có màu biến thiên liên tục từ đỏ đến tím</span></p><div class=\"table-overflow-protection\"></div>"
+             },
+             "subContentId": "015e0720-be62-4d9e-ba55-438bb16abf99",
+             "metadata": {
+              "contentType": "Câu hỏi Đúng/Sai",
+              "license": "U",
+              "title": "Câu hỏi Đúng/Sai",
+              "authors": [],
+              "changes": [],
+              "extraTitle": "Câu hỏi Đúng/Sai"
+             }
+            },
+            "pause": true,
+            "displayType": "poster",
+            "buttonOnMobile": false,
+            "adaptivity": {
+             "correct": {
+              "allowOptOut": false,
+              "message": "<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>"
+             },
+             "wrong": {
+              "allowOptOut": false,
+              "message": "<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>"
+             },
+             "requireCompletion": false
+            },
+            "label": "<div class=\"table-overflow-protection\"></div>"
+           }
+          ],
+          "bookmarks": [],
+          "endscreens": [
+           {
+            "time": 71.7961,
+            "label": "1:11 Màn hình khai báo"
+           }
+          ]
+         },
+         "summary": {
+          "task": {
+           "library": "H5P.Summary 1.10",
+           "params": {
+            "intro": "<p><strong>Câu 4:</strong> Hiện tượng chùm ánh sáng trắng đi qua lăng kính bị tách thành dải nhiều màu sắc gọi là: Chọn câu trả lời đúng nhất</p>",
+            "overallFeedback": [
+             {
+              "from": 0,
+              "to": 100
+             }
+            ],
+            "solvedLabel": "Số câu đã hoàn thành",
+            "scoreLabel": "Câu trả lời sai",
+            "resultLabel": "Kết quả của bạn",
+            "labelCorrect": "Chính xác",
+            "labelIncorrect": "Không chính xác. Hãy thử lại nhé",
+            "alternativeIncorrectLabel": "Câu trả lời không chính xác",
+            "labelCorrectAnswers": "Câu trả lời chính xác",
+            "tipButtonLabel": "Hiển thị mẹo làm bài",
+            "scoreBarLabel": "Bạn nhận được :num trong :total điểm",
+            "progressText": "tiến trình :num của :total",
+            "summaries": [
+             {
+              "subContentId": "6132be3b-0a62-4b04-ba87-8e0e32e9ecdf",
+              "summary": [
+               "<p>Hiện tượng tán sắc ánh sáng.</p><div class=\"table-overflow-protection\"></div>",
+               "<p>Hiện tượng phản xạ ánh sáng.&nbsp;</p><div class=\"table-overflow-protection\"></div>",
+               "<p>Hiện tượng khúc xạ ánh sáng.</p><div class=\"table-overflow-protection\"></div>",
+               "<p>Hiện tượng hấp thụ ánh sáng.</p><div class=\"table-overflow-protection\"></div>"
+              ],
+              "tip": "<div></div><div></div>"
+             }
+            ]
+           },
+           "subContentId": "ba675018-b093-42d6-b171-471013b54def",
+           "metadata": {
+            "contentType": "Trắc nghiệm chọn câu trả lời đúng nhất",
+            "license": "U",
+            "title": "Trắc nghiệm chọn câu trả lời đúng nhất",
+            "authors": [],
+            "changes": [],
+            "extraTitle": "Trắc nghiệm chọn câu trả lời đúng nhất"
+           }
+          },
+          "displayAt": 5
+         }
+        },
+        "override": {
+         "autoplay": false,
+         "loop": false,
+         "showBookmarksmenuOnLoad": false,
+         "showRewind10": false,
+         "preventSkippingMode": "none",
+         "deactivateSound": false
+        },
+        "l10n": {
+         "interaction": "Tương tác",
+         "play": "Phát",
+         "pause": "Tạm dừng",
+         "mute": "Tắt tiếng, hiện không có âm thanh",
+         "unmute": "Mở tiếng, hiện đã tắt âm thanh",
+         "quality": "Chất lực video",
+         "captions": "Phụ đề",
+         "close": "Đóng",
+         "fullscreen": "Toàn màn hình",
+         "exitFullscreen": "Thoát toàn màn hình",
+         "summary": "Mở tóm tắt",
+         "bookmarks": "Đánh dấu",
+         "endscreen": "Màn hình gửi",
+         "defaultAdaptivitySeekLabel": "Tiếp tục",
+         "continueWithVideo": "Tiếp tục video",
+         "more": "Tùy chọn phát nhiều hơn",
+         "playbackRate": "Đặt tốc độ phát",
+         "rewind10": "Quay lại 10 giây",
+         "navDisabled": "Chế độ quay lại và chuyển tiếp bị vô hiệu hóa",
+         "navForwardDisabled": "Quay lại tiếp viên bị vô hiệu hóa",
+         "sndDisabled": "Âm thanh đã bị vô hiệu hóa",
+         "requiresCompletionWarning": "Phải trả lời đúng tất cả câu hỏi để có thể tiếp tục.",
+         "back": "Quay lại",
+         "hours": "Giờ",
+         "minutes": "Phút",
+         "seconds": "Giây",
+         "currentTime": "Thời gian hiện tại:",
+         "totalTime": "Thời gian tổng cộng:",
+         "singleInteractionAnnouncement": "Tương tác đã xuất hiện:",
+         "multipleInteractionsAnnouncement": "Đã xuất hiện nhiều tương tác.",
+         "videoPausedAnnouncement": "Video đã tạm dừng",
+         "content": "Nội dung",
+         "answered": "@answered đã trả lời",
+         "endcardTitle": "@answered câu hỏi đã trả lời",
+         "endcardInformation": "Bạn đã trả lời @câu hỏi đã trả lời.",
+         "endcardInformationOnSubmitButtonDisabled": "Bạn đã trả lời @câu hỏi đã trả lời. Nhấp vào bên dưới để gửi kết quả của bạn.",
+         "endcardInformationNoAnswers": "Bạn chưa trả lời bất kỳ câu hỏi nào.",
+         "endcardInformationMustHaveAnswer": "Bạn phải trả lời ít nhất một câu hỏi để gửi câu trả lời của mình.",
+         "endcardSubmitButton": "Gửi trả lời",
+         "endcardSubmitMessage": "Câu trả lời của bạn đã được gửi!",
+         "endcardTableRowAnswered": "Câu hỏi đã trả lời",
+         "endcardTableRowScore": "Điểm",
+         "endcardAnsweredScore": "đã trả lời",
+         "endCardTableRowSummaryWithScore": "Bạn nhận được @score trong tổng số @total điểm cho @question xuất hiện ở @minutes phút và @seconds giây.",
+         "endCardTableRowSummaryWithoutScore": "Bạn đã trả lời @câu hỏi xuất hiện ở @minutes phút và @seconds giây.",
+         "videoProgressBar": "Tiến trình video",
+         "howToCreateInteractions": "Phát video để bắt đầu tạo tương tác"
+        }
+       },
+       "library": "H5P.InteractiveVideo 1.27",
+       "metadata": {
+        "contentType": "Video tương tác",
+        "license": "U",
+        "title": "Thí nghiệm tán sắc-ánh sáng qua lăng",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Thí nghiệm tán sắc-ánh sáng qua lăng"
+       },
+       "subContentId": "6741475f-a525-4468-8b32-f8076ed56750"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "6466eb40-3dc1-4f42-83a2-f9a34722e96a",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Thí nghiệm tán sắc-ánh sáng qua lăng",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Thí nghiệm tán sắc-ánh sáng qua lăng"
+   }
+  },
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "presentation": {
+         "slides": [
+          {
+           "elements": [
+            {
+             "x": 0,
+             "y": 0,
+             "width": 99.99598470363289,
+             "height": 99.98451427708113,
+             "action": {
+              "library": "H5P.Image 1.1",
+              "params": {
+               "decorative": false,
+               "contentName": "Hình ảnh",
+               "expandImage": "Mở rộng hình ảnh",
+               "minimizeImage": "Thu nhỏ hình ảnh",
+               "file": {
+                "path": "images/image-9H4EZhtd.png",
+                "mime": "image/png",
+                "size": 919356,
+                "copyright": {
+                 "license": "U"
+                },
+                "width": 903,
+                "height": 516
+               }
+              },
+              "subContentId": "90acfcb4-d2a4-4375-a347-e60df8add833",
+              "metadata": {
+               "contentType": "Hình ảnh",
+               "license": "U",
+               "title": "Không có tiêu đề Hình ảnh",
+               "authors": [],
+               "changes": []
+              }
+             },
+             "alwaysDisplayComments": false,
+             "backgroundOpacity": 0,
+             "displayAsButton": false,
+             "buttonSize": "big",
+             "goToSlideType": "specified",
+             "invisible": false,
+             "solution": "<div class=\"table-overflow-protection\"></div>"
+            }
+           ],
+           "keywords": [],
+           "slideBackgroundSelector": {}
+          }
+         ],
+         "keywordListEnabled": true,
+         "keywordListAlwaysShow": false,
+         "keywordListAutoHide": false,
+         "keywordListOpacity": 90,
+         "globalBackgroundSelector": {}
+        },
+        "override": {
+         "activeSurface": false,
+         "hideSummarySlide": false,
+         "summarySlideSolutionButton": true,
+         "summarySlideRetryButton": true,
+         "enablePrintButton": false,
+         "social": {
+          "showFacebookShare": false,
+          "facebookShare": {
+           "url": "@currentpageurl",
+           "quote": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl."
+          },
+          "showTwitterShare": false,
+          "twitterShare": {
+           "statement": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl.",
+           "url": "@currentpageurl",
+           "hashtags": "h5p, Kurs"
+          },
+          "showGoogleShare": false,
+          "googleShareUrl": "@currentpageurl"
+         }
+        },
+        "l10n": {
+         "slide": "Trang",
+         "score": "Điểm",
+         "yourScore": "Điểm của bạn",
+         "maxScore": "Điểm tối đa",
+         "total": "Tổng",
+         "totalScore": "Tổng điểm",
+         "showSolutions": "Hiển thị giải pháp",
+         "retry": "Làm lại",
+         "exportAnswers": "Xuất văn bản",
+         "hideKeywords": "Ẩn danh sách từ khóa",
+         "showKeywords": "Hiển thị danh sách từ khóa",
+         "fullscreen": "Toàn màn hình",
+         "exitFullscreen": "Kết thúc toàn màn hình",
+         "prevSlide": "Trang trước",
+         "nextSlide": "Trang tiếp theo",
+         "currentSlide": "Trang hiện tại",
+         "lastSlide": "Trang cuối cùng",
+         "solutionModeTitle": "Kết thúc chế độ giải pháp",
+         "solutionModeText": "Chế độ giải pháp",
+         "summaryMultipleTaskText": "Nhiều bài tập",
+         "scoreMessage": "Bạn đã đạt:",
+         "shareFacebook": "Chia sẻ trên Facebook",
+         "shareTwitter": "Chia sẻ trên Twitter",
+         "shareGoogle": "Chia sẻ trên Google+",
+         "summary": "Tóm tắt",
+         "solutionsButtonTitle": "Hiển thị bình luận",
+         "printTitle": "In",
+         "printIngress": "Bạn muốn in bản trình bày này như thế nào?",
+         "printAllSlides": "In tất cả trang",
+         "printCurrentSlide": "In trang hiện tại",
+         "noTitle": "Không có tiêu đề",
+         "accessibilitySlideNavigationExplanation": "Sử dụng phím mũi tên trái hoặc phải để chuyển đến trang theo chiều mũi tên, khi vùng trình bày được chọn.",
+         "accessibilityCanvasLabel": "Vùng trình bày. Sử dụng phím mũi tên trái hoặc phải để di chuyển giữa các trang.",
+         "accessibilityProgressBarLabel": "Chọn hình ảnh muốn hiển thị",
+         "containsNotCompleted": "@slideName chứa một tương tác chưa hoàn thành",
+         "containsCompleted": "@slideName đã hoàn thành",
+         "slideCount": "Trang số @index trong tổng số @total",
+         "containsOnlyCorrect": "@slideName chỉ chứa câu trả lời đúng",
+         "containsIncorrectAnswers": "@slideName chứa câu trả lời sai",
+         "shareResult": "Chia sẻ kết quả",
+         "accessibilityTotalScore": "Bạn đã đạt tổng cộng @score trên @maxScore điểm.",
+         "accessibilityEnteredFullscreen": "Toàn màn hình được kích hoạt",
+         "accessibilityExitedFullscreen": "Toàn màn hình bị vô hiệu hóa",
+         "confirmDialogHeader": "Gửi câu trả lời",
+         "confirmDialogText": "Những kết quả của bạn sẽ được gửi đi. Bạn muốn tiếp tục chứ?",
+         "confirmDialogConfirmText": "Gửi và xem kết quả",
+         "slideshowNavigationLabel": "Điều hướng hình ảnh",
+         "confirmDialogConfirmLabel": "Xác nhận",
+         "confirmDialogCancelLabel": "Huỷ"
+        }
+       },
+       "library": "H5P.CoursePresentation 1.26",
+       "metadata": {
+        "contentType": "Slide tương tác",
+        "license": "U",
+        "title": "Không có tiêu đề Slide tương tác",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Slide tương tác"
+       },
+       "subContentId": "97ee286f-b26b-470d-8a2c-1538e1f80230"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Đỏ, cam, vàng, lục, lam, chàm, tím.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Đỏ, vàng, cam, lục, chàm, lam, tím.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Tím, chàm, lam, lục, vàng, cam, đỏ.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Đỏ, lục, lam, vàng, cam, chàm, tím.</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 5:</strong> Thứ tự dải màu của quang phổ ánh sáng trắng từ trên xuống dưới (hoặc từ tia bị lệch ít nhất đến tia bị lệch nhiều nhất) lần lượt là:&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "438fbeea-9dd0-42a5-a492-d842536eca7f"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Sự tán sắc ánh sáng Mặt Trời qua các giọt nước.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Sự phản xạ ánh sáng của mặt đất.&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Sự hấp thụ ánh sáng của mây.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Sự tỏa nhiệt của hơi nước.</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 6:</strong> Cầu vồng xuất hiện sau cơn mưa là hiện tượng tự nhiên liên quan đến:&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "677a8297-bfad-4ceb-b71c-3552d17b03fc"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "514e856d-446c-4a9b-ba5e-296094ecf8ff",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Hiện tượng tán sác ánh sáng",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Hiện tượng tán sác ánh sáng"
+   }
+  },
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "presentation": {
+         "slides": [
+          {
+           "elements": [
+            {
+             "x": 0,
+             "y": 0,
+             "width": 99.99598470363289,
+             "height": 99.99244598882008,
+             "action": {
+              "library": "H5P.Image 1.1",
+              "params": {
+               "decorative": false,
+               "contentName": "Hình ảnh",
+               "expandImage": "Mở rộng hình ảnh",
+               "minimizeImage": "Thu nhỏ hình ảnh",
+               "file": {
+                "path": "images/image-9ZweNoVV.png",
+                "mime": "image/png",
+                "size": 535289,
+                "copyright": {
+                 "license": "U"
+                },
+                "width": 708,
+                "height": 474
+               }
+              },
+              "subContentId": "50927f3f-9795-4176-96f4-6ee0adf2d189",
+              "metadata": {
+               "contentType": "Hình ảnh",
+               "license": "U",
+               "title": "Không có tiêu đề Hình ảnh",
+               "authors": [],
+               "changes": []
+              }
+             },
+             "alwaysDisplayComments": false,
+             "backgroundOpacity": 0,
+             "displayAsButton": false,
+             "buttonSize": "big",
+             "goToSlideType": "specified",
+             "invisible": false,
+             "solution": "<div class=\"table-overflow-protection\"></div>"
+            }
+           ],
+           "keywords": [],
+           "slideBackgroundSelector": {}
+          }
+         ],
+         "keywordListEnabled": true,
+         "keywordListAlwaysShow": false,
+         "keywordListAutoHide": false,
+         "keywordListOpacity": 90,
+         "globalBackgroundSelector": {}
+        },
+        "override": {
+         "activeSurface": false,
+         "hideSummarySlide": false,
+         "summarySlideSolutionButton": true,
+         "summarySlideRetryButton": true,
+         "enablePrintButton": false,
+         "social": {
+          "showFacebookShare": false,
+          "facebookShare": {
+           "url": "@currentpageurl",
+           "quote": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl."
+          },
+          "showTwitterShare": false,
+          "twitterShare": {
+           "statement": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl.",
+           "url": "@currentpageurl",
+           "hashtags": "h5p, Kurs"
+          },
+          "showGoogleShare": false,
+          "googleShareUrl": "@currentpageurl"
+         }
+        },
+        "l10n": {
+         "slide": "Trang",
+         "score": "Điểm",
+         "yourScore": "Điểm của bạn",
+         "maxScore": "Điểm tối đa",
+         "total": "Tổng",
+         "totalScore": "Tổng điểm",
+         "showSolutions": "Hiển thị giải pháp",
+         "retry": "Làm lại",
+         "exportAnswers": "Xuất văn bản",
+         "hideKeywords": "Ẩn danh sách từ khóa",
+         "showKeywords": "Hiển thị danh sách từ khóa",
+         "fullscreen": "Toàn màn hình",
+         "exitFullscreen": "Kết thúc toàn màn hình",
+         "prevSlide": "Trang trước",
+         "nextSlide": "Trang tiếp theo",
+         "currentSlide": "Trang hiện tại",
+         "lastSlide": "Trang cuối cùng",
+         "solutionModeTitle": "Kết thúc chế độ giải pháp",
+         "solutionModeText": "Chế độ giải pháp",
+         "summaryMultipleTaskText": "Nhiều bài tập",
+         "scoreMessage": "Bạn đã đạt:",
+         "shareFacebook": "Chia sẻ trên Facebook",
+         "shareTwitter": "Chia sẻ trên Twitter",
+         "shareGoogle": "Chia sẻ trên Google+",
+         "summary": "Tóm tắt",
+         "solutionsButtonTitle": "Hiển thị bình luận",
+         "printTitle": "In",
+         "printIngress": "Bạn muốn in bản trình bày này như thế nào?",
+         "printAllSlides": "In tất cả trang",
+         "printCurrentSlide": "In trang hiện tại",
+         "noTitle": "Không có tiêu đề",
+         "accessibilitySlideNavigationExplanation": "Sử dụng phím mũi tên trái hoặc phải để chuyển đến trang theo chiều mũi tên, khi vùng trình bày được chọn.",
+         "accessibilityCanvasLabel": "Vùng trình bày. Sử dụng phím mũi tên trái hoặc phải để di chuyển giữa các trang.",
+         "accessibilityProgressBarLabel": "Chọn hình ảnh muốn hiển thị",
+         "containsNotCompleted": "@slideName chứa một tương tác chưa hoàn thành",
+         "containsCompleted": "@slideName đã hoàn thành",
+         "slideCount": "Trang số @index trong tổng số @total",
+         "containsOnlyCorrect": "@slideName chỉ chứa câu trả lời đúng",
+         "containsIncorrectAnswers": "@slideName chứa câu trả lời sai",
+         "shareResult": "Chia sẻ kết quả",
+         "accessibilityTotalScore": "Bạn đã đạt tổng cộng @score trên @maxScore điểm.",
+         "accessibilityEnteredFullscreen": "Toàn màn hình được kích hoạt",
+         "accessibilityExitedFullscreen": "Toàn màn hình bị vô hiệu hóa",
+         "confirmDialogHeader": "Gửi câu trả lời",
+         "confirmDialogText": "Những kết quả của bạn sẽ được gửi đi. Bạn muốn tiếp tục chứ?",
+         "confirmDialogConfirmText": "Gửi và xem kết quả",
+         "slideshowNavigationLabel": "Điều hướng hình ảnh",
+         "confirmDialogConfirmLabel": "Xác nhận",
+         "confirmDialogCancelLabel": "Huỷ"
+        }
+       },
+       "library": "H5P.CoursePresentation 1.26",
+       "metadata": {
+        "contentType": "Slide tương tác",
+        "license": "U",
+        "title": "Không có tiêu đề Slide tương tác",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Slide tương tác"
+       },
+       "subContentId": "fb3418cf-c858-476e-842d-0d13956dd92f"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "correct": "false",
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false
+        },
+        "l10n": {
+         "trueText": "Đúng",
+         "falseText": "Sai",
+         "score": "Bạn đạt được @score trong @total số điểm",
+         "checkAnswer": "Kiểm tra",
+         "submitAnswer": "Gửi",
+         "showSolutionButton": "Đáp án",
+         "tryAgain": "Làm lại",
+         "wrongAnswerMessage": "Câu trả lời sai",
+         "correctAnswerMessage": "Câu trả lời đúng",
+         "scoreBarLabel": "Bạn dạt được :num trong :total số điểm",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là đúng, không chính xác hoặc chưa được trả lời.",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ."
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Làm lại",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 7: </strong>Trong hiện tượng tán sắc ánh sáng trắng qua lăng kính, ánh sáng màu đỏ bị lệch hướng nhiều nhất.&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.TrueFalse 1.8",
+       "metadata": {
+        "contentType": "Câu hỏi Đúng/Sai",
+        "license": "U",
+        "title": "Câu hỏi Đúng/Sai",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Câu hỏi Đúng/Sai"
+       },
+       "subContentId": "0df538c2-c9a9-4b54-bb94-4f50b26d1d13"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Chỉ có một màu xác định và không bị tán sắc khi qua lăng kính.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Bị tách thành 7 màu khi qua lăng kính.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Luôn có màu trắng khi chiếu qua lăng kính.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Không bị lệch hướng khi đi qua lăng kính</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 8:</strong> Đặc điểm nào sau đây là của <strong>ánh sáng đơn sắc</strong>?&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "bcd59bc8-4a70-4864-8167-b2a05455df4c"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "b6ffd9ab-6e1d-4b5a-84ed-717f1dd2e972",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Hiện tượng tán sắc ánh sáng",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Hiện tượng tán sắc ánh sáng"
+   }
+  },
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "presentation": {
+         "slides": [
+          {
+           "elements": [
+            {
+             "x": 0,
+             "y": 0,
+             "width": 99.99598470363289,
+             "height": 99.99244598882008,
+             "action": {
+              "library": "H5P.Image 1.1",
+              "params": {
+               "decorative": false,
+               "contentName": "Hình ảnh",
+               "expandImage": "Mở rộng hình ảnh",
+               "minimizeImage": "Thu nhỏ hình ảnh",
+               "file": {
+                "path": "images/image-7YLC8Tkj.png",
+                "mime": "image/png",
+                "size": 484245,
+                "copyright": {
+                 "license": "U"
+                },
+                "width": 701,
+                "height": 453
+               }
+              },
+              "subContentId": "457495d1-130e-4034-bd51-a7096df40c1d",
+              "metadata": {
+               "contentType": "Hình ảnh",
+               "license": "U",
+               "title": "Không có tiêu đề Hình ảnh",
+               "authors": [],
+               "changes": []
+              }
+             },
+             "alwaysDisplayComments": false,
+             "backgroundOpacity": 0,
+             "displayAsButton": false,
+             "buttonSize": "big",
+             "goToSlideType": "specified",
+             "invisible": false,
+             "solution": "<div class=\"table-overflow-protection\"></div>"
+            }
+           ],
+           "keywords": [],
+           "slideBackgroundSelector": {}
+          }
+         ],
+         "keywordListEnabled": true,
+         "keywordListAlwaysShow": false,
+         "keywordListAutoHide": false,
+         "keywordListOpacity": 90,
+         "globalBackgroundSelector": {}
+        },
+        "override": {
+         "activeSurface": false,
+         "hideSummarySlide": false,
+         "summarySlideSolutionButton": true,
+         "summarySlideRetryButton": true,
+         "enablePrintButton": false,
+         "social": {
+          "showFacebookShare": false,
+          "facebookShare": {
+           "url": "@currentpageurl",
+           "quote": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl."
+          },
+          "showTwitterShare": false,
+          "twitterShare": {
+           "statement": "Tôi đã đạt @score trên @maxScore điểm cho bài tập @currentpageurl.",
+           "url": "@currentpageurl",
+           "hashtags": "h5p, Kurs"
+          },
+          "showGoogleShare": false,
+          "googleShareUrl": "@currentpageurl"
+         }
+        },
+        "l10n": {
+         "slide": "Trang",
+         "score": "Điểm",
+         "yourScore": "Điểm của bạn",
+         "maxScore": "Điểm tối đa",
+         "total": "Tổng",
+         "totalScore": "Tổng điểm",
+         "showSolutions": "Hiển thị giải pháp",
+         "retry": "Làm lại",
+         "exportAnswers": "Xuất văn bản",
+         "hideKeywords": "Ẩn danh sách từ khóa",
+         "showKeywords": "Hiển thị danh sách từ khóa",
+         "fullscreen": "Toàn màn hình",
+         "exitFullscreen": "Kết thúc toàn màn hình",
+         "prevSlide": "Trang trước",
+         "nextSlide": "Trang tiếp theo",
+         "currentSlide": "Trang hiện tại",
+         "lastSlide": "Trang cuối cùng",
+         "solutionModeTitle": "Kết thúc chế độ giải pháp",
+         "solutionModeText": "Chế độ giải pháp",
+         "summaryMultipleTaskText": "Nhiều bài tập",
+         "scoreMessage": "Bạn đã đạt:",
+         "shareFacebook": "Chia sẻ trên Facebook",
+         "shareTwitter": "Chia sẻ trên Twitter",
+         "shareGoogle": "Chia sẻ trên Google+",
+         "summary": "Tóm tắt",
+         "solutionsButtonTitle": "Hiển thị bình luận",
+         "printTitle": "In",
+         "printIngress": "Bạn muốn in bản trình bày này như thế nào?",
+         "printAllSlides": "In tất cả trang",
+         "printCurrentSlide": "In trang hiện tại",
+         "noTitle": "Không có tiêu đề",
+         "accessibilitySlideNavigationExplanation": "Sử dụng phím mũi tên trái hoặc phải để chuyển đến trang theo chiều mũi tên, khi vùng trình bày được chọn.",
+         "accessibilityCanvasLabel": "Vùng trình bày. Sử dụng phím mũi tên trái hoặc phải để di chuyển giữa các trang.",
+         "accessibilityProgressBarLabel": "Chọn hình ảnh muốn hiển thị",
+         "containsNotCompleted": "@slideName chứa một tương tác chưa hoàn thành",
+         "containsCompleted": "@slideName đã hoàn thành",
+         "slideCount": "Trang số @index trong tổng số @total",
+         "containsOnlyCorrect": "@slideName chỉ chứa câu trả lời đúng",
+         "containsIncorrectAnswers": "@slideName chứa câu trả lời sai",
+         "shareResult": "Chia sẻ kết quả",
+         "accessibilityTotalScore": "Bạn đã đạt tổng cộng @score trên @maxScore điểm.",
+         "accessibilityEnteredFullscreen": "Toàn màn hình được kích hoạt",
+         "accessibilityExitedFullscreen": "Toàn màn hình bị vô hiệu hóa",
+         "confirmDialogHeader": "Gửi câu trả lời",
+         "confirmDialogText": "Những kết quả của bạn sẽ được gửi đi. Bạn muốn tiếp tục chứ?",
+         "confirmDialogConfirmText": "Gửi và xem kết quả",
+         "slideshowNavigationLabel": "Điều hướng hình ảnh",
+         "confirmDialogConfirmLabel": "Xác nhận",
+         "confirmDialogCancelLabel": "Huỷ"
+        }
+       },
+       "library": "H5P.CoursePresentation 1.26",
+       "metadata": {
+        "contentType": "Slide tương tác",
+        "license": "U",
+        "title": "Không có tiêu đề Slide tương tác",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Slide tương tác"
+       },
+       "subContentId": "b1e21e8b-22d0-4b10-80f0-f11178db1c0e"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "correct": "true",
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false
+        },
+        "l10n": {
+         "trueText": "Đúng",
+         "falseText": "Sai",
+         "score": "Bạn đạt được @score trong @total số điểm",
+         "checkAnswer": "Kiểm tra",
+         "submitAnswer": "Gửi",
+         "showSolutionButton": "Đáp án",
+         "tryAgain": "Làm lại",
+         "wrongAnswerMessage": "Câu trả lời sai",
+         "correctAnswerMessage": "Câu trả lời đúng",
+         "scoreBarLabel": "Bạn dạt được :num trong :total số điểm",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là đúng, không chính xác hoặc chưa được trả lời.",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ."
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Làm lại",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 9: </strong>Vật có màu nào thì phản xạ tốt ánh sáng màu đó và hấp thụ các màu khác.&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.TrueFalse 1.8",
+       "metadata": {
+        "contentType": "Câu hỏi Đúng/Sai",
+        "license": "U",
+        "title": "Không có tiêu đề Câu hỏi Đúng/Sai",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Câu hỏi Đúng/Sai"
+       },
+       "subContentId": "5e369fb0-59fa-4d5d-a341-532037b8d3b0"
+      },
+      "useSeparator": "auto"
+     },
+     {
+      "content": {
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "answers": [
+         {
+          "correct": true,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Phản xạ ánh sáng màu xanh lam và hấp thụ các màu khác.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Hấp thụ ánh sáng màu xanh lam và phản xạ các màu khác.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Tán sắc ánh sáng trắng thành cầu vồng.</p><div class=\"table-overflow-protection\"></div>"
+         },
+         {
+          "correct": false,
+          "tipsAndFeedback": {
+           "tip": "<div></div><div></div>",
+           "chosenFeedback": "<div></div><div></div>",
+           "notChosenFeedback": "<div></div><div></div>"
+          },
+          "text": "<p>Biến đổi ánh sáng trắng thành ánh sáng màu đỏ.</p><div class=\"table-overflow-protection\"></div>"
+         }
+        ],
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "type": "auto",
+         "singlePoint": false,
+         "randomAnswers": true,
+         "showSolutionsRequiresInput": true,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "autoCheck": false,
+         "passPercentage": 100,
+         "showScorePoints": true
+        },
+        "UI": {
+         "checkAnswerButton": "Kiểm tra",
+         "submitAnswerButton": "Gửi bài tập",
+         "showSolutionButton": "Đáp án",
+         "tryAgainButton": "Làm lại",
+         "tipsLabel": "Hiển thị cách làm bài",
+         "scoreBarLabel": "bạn đạt được :num trong :total số điểm",
+         "tipAvailable": "Cách làm có sẵn",
+         "feedbackAvailable": " Phản hồi có sẵn",
+         "readFeedback": "Đọc phản hồi",
+         "wrongAnswer": "Câu trả lời sai",
+         "correctAnswer": "Câu trả lời chính xác",
+         "shouldCheck": "Nên được kiểm tra",
+         "shouldNotCheck": "Không nên được kiểm tra",
+         "noInput": "Xin vui lòng trả lời câu hỏi trước khi xem giải pháp",
+         "a11yCheck": "Kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời",
+         "a11yShowSolution": "Hiển thị giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+         "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các câu trả lời và bắt đầu lại nhiệm vụ"
+        },
+        "confirmCheck": {
+         "header": "Thông báo xác nhận kết thúc bài tập",
+         "body": "Bạn đã hoàn thành và muốn kết thúc bài tập?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Quay lại",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thông báo xác nhận làm lại bài tập",
+         "body": "Bạn muốn làm lại bài tập này?<div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>",
+         "cancelLabel": "Không",
+         "confirmLabel": "Có"
+        },
+        "question": "<p><strong>Câu 10: </strong>Khi chiếu ánh sáng trắng vào một chiếc áo màu xanh lam, chiếc áo sẽ:&nbsp;</p><div class=\"table-overflow-protection\"></div>"
+       },
+       "library": "H5P.MultiChoice 1.16",
+       "metadata": {
+        "contentType": "Trắc nghiệm nhiều đáp án",
+        "license": "U",
+        "title": "Trắc nghiệm nhiều đáp án",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Trắc nghiệm nhiều đáp án"
+       },
+       "subContentId": "99e79a2c-9c78-47ab-bf8a-6fd200f2498f"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "83caf5f9-10d5-4ddb-8a4e-bedb346deaf0",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Phần 3. Màu sắc các vật",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Phần 3. Màu sắc các vật"
+   }
+  },
+  {
+   "params": {
+    "content": [
+     {
+      "content": {
+       "params": {
+        "decorative": false,
+        "contentName": "Hình ảnh",
+        "expandImage": "Mở rộng hình ảnh",
+        "minimizeImage": "Thu nhỏ hình ảnh",
+        "file": {
+         "path": "images/image-ZdfcjSn8.png",
+         "mime": "image/png",
+         "size": 799996,
+         "copyright": {
+          "license": "U"
+         },
+         "width": 684,
+         "height": 450
+        }
+       },
+       "library": "H5P.Image 1.1",
+       "metadata": {
+        "contentType": "Hình ảnh",
+        "license": "U",
+        "title": "Không có tiêu đề Hình ảnh",
+        "authors": [],
+        "changes": []
+       },
+       "subContentId": "f21ecd0d-8ac3-43c7-855f-b062f36e45fd"
+      },
+      "useSeparator": "auto"
+     }
+    ]
+   },
+   "library": "H5P.Column 1.18",
+   "subContentId": "c2ac1ce2-b11f-4fd5-903b-5376d39fab40",
+   "metadata": {
+    "contentType": "Tạo bài kiểm tra đánh giá",
+    "license": "U",
+    "title": "Kết thúc",
+    "authors": [],
+    "changes": [],
+    "extraTitle": "Kết thúc"
+   }
+  }
+ ],
+ "behaviour": {
+  "baseColor": "#1768c4",
+  "defaultTableOfContents": true,
+  "progressIndicators": true,
+  "progressAuto": true,
+  "displaySummary": true,
+  "enableRetry": true
+ },
+ "read": "Đọc",
+ "displayTOC": "Hiển thị 'Mục lục'",
+ "hideTOC": "Ẩn 'Mục lục'",
+ "nextPage": "Trang tiếp theo",
+ "previousPage": "Trang trước",
+ "chapterCompleted": "Trang đã hoàn thành!",
+ "partCompleted": "@pages của @total đã hoàn thành",
+ "incompleteChapter": "Trang chưa hoàn chỉnh",
+ "navigateToTop": "Điều hướng lên đầu",
+ "markAsFinished": "Tôi đã hoàn thành trang này",
+ "fullscreen": "Chế độ toàn màn hình",
+ "exitFullscreen": "Thoát chế độ toàn màn hình",
+ "bookProgressSubtext": "@count của @total trang",
+ "interactionsProgressSubtext": "@count của @total tương tác",
+ "submitReport": "Gửi báo cáo",
+ "restartLabel": "Khởi động lại",
+ "summaryHeader": "Tóm tắt",
+ "allInteractions": "Tất cả tương tác",
+ "unansweredInteractions": "Tương tác chưa trả lời",
+ "scoreText": "@score / @maxscore",
+ "leftOutOfTotalCompleted": "@left của @max tương tác đã hoàn thành",
+ "noInteractions": "Không có tương tác",
+ "score": "Điểm số",
+ "summaryAndSubmit": "Tóm tắt &amp; gửi",
+ "noChapterInteractionBoldText": "Bạn chưa tương tác với bất kỳ trang nào.",
+ "noChapterInteractionText": "Bạn phải tương tác với ít nhất một trang trước khi có thể xem tóm tắt.",
+ "yourAnswersAreSubmittedForReview": "Câu trả lời của bạn đã được gửi để xem xét!",
+ "bookProgress": "Tiến độ sách",
+ "interactionsProgress": "Tiến độ tương tác",
+ "totalScoreLabel": "Tổng điểm",
+ "a11y": {
+  "progress": "Trang @page của @total.",
+  "menu": "Chuyển đổi menu điều hướng"
+ }
+}

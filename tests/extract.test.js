@@ -83,5 +83,20 @@ check('Library không hỗ trợ -> null', () => {
   assert.strictEqual(r, null);
 });
 
+check('DragText: đáp án từ params.textField (token *...*)', () => {
+  const r = extractAnswers('H5P.DragText 1.9', { params: { textField: 'Tôi *yêu* màu *xanh*.' } });
+  assert.strictEqual(r.kind, 'blanks');
+  assert.deepStrictEqual(r.answers, ['yêu', 'xanh']);
+});
+
+check('SingleChoiceSet: correctTexts từ choices[].answers[].correct', () => {
+  const r = extractAnswers('H5P.SingleChoiceSet 1.11', { params: { choices: [
+    { question: 'Q1', answers: [{ text: 'A', correct: false }, { text: 'B', correct: true }] },
+    { question: 'Q2', answers: [{ text: 'C', correct: true }, { text: 'D', correct: false }] },
+  ] } });
+  assert.strictEqual(r.kind, 'choice');
+  assert.deepStrictEqual(r.correctTexts, ['B', 'C']);
+});
+
 console.log(`\nKết quả: ${passed} pass, ${failed} fail`);
 process.exit(failed ? 1 : 0);

@@ -7,16 +7,20 @@
  * (scrollIntoViewIfNeeded trước). Đã verify: MC câu 2 chọn được đúng.
  */
 const { sleep, humanDelay } = require('../../core/stealth');
-const { clickEl, countVisible, norm } = require('./dom');
+const { clickEl, norm } = require('./dom');
+const { solveDragText, solveDrag } = require('../solver');
 
-/** Chọn đáp án Choice (MultiChoice/SingleChoice/TrueFalse) trong container. */
+/** Chọn đáp án Choice (MultiChoice/SingleChoice/TrueFalse/SingleChoiceSet) trong container. */
 async function solveChoice(root, container, extracted, logger) {
+  // SingleChoiceSet: nhiều slide, mỗi slide 1 câu, click đáp án đúng -> tự sang slide kế.
+  if (await container.locator('.h5p-sc-alternative').count().catch(() => 0)) {
+    return solveSingleChoiceSet(root, container, extracted, logger);
+  }
   // TrueFalse dùng .h5p-true-false-answer, còn lại .h5p-answer.
   let answers = container.locator('.h5p-answer');
   let count = await answers.count().catch(() => 0);
   if (!count) { answers = container.locator('.h5p-true-false-answer'); count = await answers.count().catch(() => 0); }
   if (!count) { answers = container.locator('.h5p-alternative-container'); count = await answers.count().catch(() => 0); }
-  if (!count) { answers = container.locator('.h5p-sc-alternative'); count = await answers.count().catch(() => 0); }
   if (!count) return { solved: false, reason: 'no-answer-nodes' };
 
   // Gom node visible + text.
@@ -53,11 +57,69 @@ async function solveChoice(root, container, extracted, logger) {
   return { solved: clicked > 0, clicked, want };
 }
 
-/** Điền Blanks trong container (theo thứ tự input). */
+/**
+ * Giải SingleChoiceSet: nhiều slide (.h5p-sc-slide), MỖI LẦN 1 slide hiện.
+ * H5P ĐÁNH DẤU sẵn đáp án đúng bằng class `.h5p-sc-is-correct` (không cần
+ * extract). Click đáp án đúng -> H5P tự chuyển slide kế. Lặp tới hết slide.
+ */
+async function solveSingleChoiceSet(root, container, extracted, logger) {
+  const data = extracted.data || extracted;
+  const texts = (data.correctTexts || []).map(norm).filter(Boolean);
+  let clicks = 0;
+  let prevQ = null;
+  let repeat = 0;
+  for (let slide = 0; slide < 20; slide++) {
+    // Màn kết quả (đã hết slide) -> dừng, tính là xong.
+    if (await container.locator('.h5p-sc-set-results:visible, .h5p-sc-finished:visible').count().catch(() => 0)) break;
+    // Chỉ xét alternative trong slide ĐANG hiện.
+    const cur = container.locator('.h5p-sc-current-slide');
+    const inCur = (await cur.count().catch(() => 0)) ? cur : container;
+    const alts = inCur.locator('.h5p-sc-alternative');
+    const n = await alts.count().catch(() => 0);
+    if (!n) break;
+    // Chống lặp vô hạn: cùng 1 câu hỏi sau click mà không tiến -> dừng.
+    const qText = norm(await inCur.locator('.h5p-sc-question').first().innerText().catch(() => ''));
+    if (qText && qText === prevQ) { if (++repeat >= 2) break; }
+    else { repeat = 0; prevQ = qText || prevQ; }
+
+    // Ưu tiên class .h5p-sc-is-correct do H5P cung cấp sẵn.
+    let target = -1;
+    for (let i = 0; i < n; i++) {
+      const isCorrect = await alts.nth(i).evaluate((el) => /h5p-sc-is-correct/.test(el.className || '')).catch(() => false);
+      if (isCorrect) { target = i; break; }
+    }
+    // Fallback: khớp text correctTexts.
+    if (target < 0 && texts.length) {
+      const altTexts = [];
+      for (let i = 0; i < n; i++) altTexts.push(norm(await alts.nth(i).innerText().catch(() => '')));
+      target = altTexts.findIndex((t) => texts.includes(t));
+      if (target < 0) target = altTexts.findIndex((t) => texts.some((w) => t && (t.includes(w) || w.includes(t))));
+    }
+    if (target < 0) target = 0;
+
+    await clickEl(root, alts.nth(target), logger).catch(() => {});
+    clicks++;
+    await sleep(1000);
+    // Hết slide (không còn current-slide hoặc alternative) -> dừng.
+    const stillN = await container.locator('.h5p-sc-current-slide .h5p-sc-alternative').count().catch(() => 0);
+    if (!stillN) break;
+  }
+  logger && logger(`  single-choice-set: clicked ${clicks}`);
+  return { solved: clicks > 0, clicked: clicks };
+}
+
+
 async function solveBlanks(root, container, extracted, logger) {
   const inputs = container.locator('input.h5p-text-input');
   const count = await inputs.count().catch(() => 0);
-  if (!count) return { solved: false, reason: 'no-input' };
+  // DragText KHÔNG có input text (kéo từ vào ô trống) -> delegate sang solver.
+  // (container là Locator, vẫn có .locator()/.page() như Frame.)
+  if (!count) {
+    if (await container.locator('.h5p-drag-text, .ui-droppable').count().catch(() => 0)) {
+      return solveDragText(container, extracted, logger);
+    }
+    return { solved: false, reason: 'no-input' };
+  }
   const answers = (extracted.data || extracted).answers || [];
   let filled = 0;
   for (let i = 0; i < count; i++) {
@@ -105,6 +167,7 @@ async function solveElement(root, container, el, logger) {
     case 'choice': return solveChoice(root, container, extracted, logger);
     case 'blanks': return solveBlanks(root, container, extracted, logger);
     case 'summary': return solveSummary(root, container, extracted, logger);
+    case 'dragquestion': return solveDrag(container, extracted, logger);
     default: return { solved: false, reason: 'unsupported:' + el.kind };
   }
 }

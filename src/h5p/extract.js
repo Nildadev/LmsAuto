@@ -103,7 +103,7 @@ function extractStarAnswers(text) {
   return matches;
 }
 function extractBlanks(params) {
-  let answers = extractStarAnswers(params.text || '');
+  let answers = extractStarAnswers(params.text || params.textField || '');
   if ((!answers || !answers.length) && Array.isArray(params.questions)) {
     for (const seg of params.questions) {
       if (typeof seg === 'string') {
@@ -207,5 +207,5 @@ function extractAnswers(library, jsonContent) {
 
 module.exports = {
   extractAnswers, extractChoice, extractTrueFalse, extractBlanks, extractDragQuestion,
-  extractSummary, extractSpeakGuess, stripHtml, decodeEntities, deburr, parseJson,
+  extractSingleChoiceSet, extractSummary, extractSpeakGuess, stripHtml, decodeEntities, deburr, parseJson,
 };

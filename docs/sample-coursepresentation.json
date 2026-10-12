@@ -1,0 +1,528 @@
+{
+ "presentation": {
+  "slides": [
+   {
+    "elements": [
+     {
+      "x": 7.625272331154684,
+      "y": 2.1517777988173825,
+      "width": 84.9673202614379,
+      "height": 8.605196113028583,
+      "action": {
+       "library": "H5P.AdvancedText 1.1",
+       "params": {
+        "text": "<p><span style=\"font-size:28px;\"><span style=\"background-color:#ff9933;\">CÁC EM XEM VIDEO ĐỂ ÔN LẠI TỪ VỰNG &amp; NGỮ PHÁP NHÉ!</span></span></p>\n"
+       },
+       "subContentId": "1b7eba9d-b8bf-4ff4-a5ef-d66f89eece02",
+       "metadata": {
+        "contentType": "Văn bản",
+        "license": "U",
+        "title": "Không có tiêu đề Văn bản",
+        "authors": [],
+        "changes": []
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     },
+     {
+      "x": 21.78649237472767,
+      "y": 32.27708370093345,
+      "width": 56.64488017429194,
+      "height": 39.99797730275474,
+      "action": {
+       "library": "H5P.Link 1.3",
+       "params": {
+        "linkWidget": {
+         "protocol": "https://",
+         "url": "www.youtube.com/watch?v=FGOOd_ysjHM"
+        },
+        "title": "HS xem hết video theo &quot;Link&quot; này đề nhớ từ vựng ,grammar"
+       },
+       "subContentId": "aef6ce37-7fb6-4134-bf96-2f6abae22094",
+       "metadata": {
+        "contentType": "Đường dẫn"
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     }
+    ],
+    "keywords": [],
+    "slideBackgroundSelector": {}
+   },
+   {
+    "elements": [
+     {
+      "x": 1.0893246187363834,
+      "y": 2.1517777988173825,
+      "width": 98.03921568627452,
+      "height": 28.838556415310325,
+      "action": {
+       "library": "H5P.Image 1.1",
+       "params": {
+        "decorative": false,
+        "title": "Hình",
+        "contentName": "Image",
+        "file": {
+         "path": "images/image-mPsn0CI7.png",
+         "mime": "image/png",
+         "copyright": {
+          "license": "U"
+         },
+         "width": 1206,
+         "height": 197
+        }
+       },
+       "subContentId": "f1213688-8855-4c79-886a-aaae11ba970b",
+       "metadata": {
+        "contentType": "Hình ảnh",
+        "license": "U",
+        "title": "Không có tiêu đề Hình ảnh",
+        "authors": [],
+        "changes": []
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     },
+     {
+      "x": 7.625272331154684,
+      "y": 32.27666698226074,
+      "width": 86.05566448801743,
+      "height": 66.57643545096958,
+      "action": {
+       "library": "H5P.Blanks 1.14",
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "text": "Điền các từ còn thiếu vào chỗ trống",
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "showSolutions": "Đáp án",
+        "tryAgain": "Thử lại",
+        "checkAnswer": "Kiểm tra",
+        "submitAnswer": "Nộp bài",
+        "notFilledOut": "Xin vui lòng điền vào tất cả các chổ trống để được xem đáp án",
+        "answerIsCorrect": "':ans' chính xác",
+        "answerIsWrong": "':ans' không chính xác",
+        "answeredCorrectly": "Câu trả lời chính xác",
+        "answeredIncorrectly": "Câu trả lời không chính xác",
+        "solutionLabel": "Câu trả lời chính xác:",
+        "inputLabel": "để trống đầu vào @num của @total",
+        "inputHasTipLabel": "Mẹo có sẵn",
+        "tipLabel": "Cách làm",
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "autoCheck": false,
+         "caseSensitive": true,
+         "showSolutionsRequiresInput": true,
+         "separateLines": false,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "acceptSpellingErrors": false
+        },
+        "scoreBarLabel": "Bạn đã nhận được :num trong tổng số :total điểm",
+        "a11yCheck": "kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời.",
+        "a11yShowSolution": "Hiển thị các giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+        "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ.",
+        "a11yCheckingModeHeader": "Kiểm tra chế độ",
+        "confirmCheck": {
+         "header": "Kết thúc ?",
+         "body": "bạn có chắc rằng bạn muốn kết thúc?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thử lại?",
+         "body": "bạn có chắc rằng muốn thử lại?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Xác nhận"
+        },
+        "questions": [
+         "<p style=\"text-align:left\"><strong>1. </strong>I go to the library to read books. The teacher tells us to *write*a book report.</p>\n",
+         "<p style=\"text-align:left\"><strong>2.</strong> I have to*give* a presentation in my science class next Friday.</p>\n",
+         "<p style=\"text-align:left\"><strong>3. </strong>We work in group to *finish* our science project.</p>\n",
+         "<p style=\"text-align:left\"><strong>4.</strong> I have to *study* for a math test.</p>\n",
+         "<p style=\"text-align:left\"><strong>5. </strong>I have to *write* an essay on food this weekend.</p>\n",
+         "<p style=\"text-align:left\"><strong>6. </strong>When do you *do* your homework?</p>\n"
+        ]
+       },
+       "subContentId": "a3538350-a00e-4733-a1f8-dfa7de1728c1",
+       "metadata": {
+        "contentType": "Điền vào chỗ trống",
+        "license": "U",
+        "title": "Không có tiêu đề Điền vào chỗ trống",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Điền vào chỗ trống"
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     }
+    ],
+    "keywords": [],
+    "slideBackgroundSelector": {}
+   },
+   {
+    "elements": [
+     {
+      "x": 2.6249302752895627,
+      "y": 2.5925945130329726,
+      "width": 75.16339869281046,
+      "height": 8.605196113028583,
+      "action": {
+       "library": "H5P.AdvancedText 1.1",
+       "params": {
+        "text": "<p><span style=\"color:#e74c3c;\"><strong>\" CLICK\" vào cái loa này đề nghe và điền vào ô trống nhé!</strong></span></p>\n"
+       },
+       "subContentId": "a210889c-5b60-4181-93c3-229bb8c3b0ee",
+       "metadata": {
+        "contentType": "Văn bản",
+        "license": "U",
+        "title": "Không có tiêu đề Văn bản",
+        "authors": [],
+        "changes": []
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     },
+     {
+      "x": 3.9373954129343445,
+      "y": 7.777783539098918,
+      "width": 86.05664488017429,
+      "height": 81.76861204236475,
+      "action": {
+       "library": "H5P.Blanks 1.14",
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "text": "<p>&nbsp;</p>\n\n<p>&nbsp;</p>\n",
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "showSolutions": "Đáp án",
+        "tryAgain": "Thử lại",
+        "checkAnswer": "Kiểm tra",
+        "submitAnswer": "Nộp bài",
+        "notFilledOut": "Xin vui lòng điền vào tất cả các chổ trống để được xem đáp án",
+        "answerIsCorrect": "':ans' chính xác",
+        "answerIsWrong": "':ans' không chính xác",
+        "answeredCorrectly": "Câu trả lời chính xác",
+        "answeredIncorrectly": "Câu trả lời không chính xác",
+        "solutionLabel": "Câu trả lời chính xác:",
+        "inputLabel": "để trống đầu vào @num của @total",
+        "inputHasTipLabel": "Mẹo có sẵn",
+        "tipLabel": "Cách làm",
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "autoCheck": false,
+         "caseSensitive": true,
+         "showSolutionsRequiresInput": true,
+         "separateLines": false,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "acceptSpellingErrors": false
+        },
+        "scoreBarLabel": "Bạn đã nhận được :num trong tổng số :total điểm",
+        "a11yCheck": "kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời.",
+        "a11yShowSolution": "Hiển thị các giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+        "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ.",
+        "a11yCheckingModeHeader": "Kiểm tra chế độ",
+        "confirmCheck": {
+         "header": "Kết thúc ?",
+         "body": "bạn có chắc rằng bạn muốn kết thúc?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thử lại?",
+         "body": "bạn có chắc rằng muốn thử lại?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Xác nhận"
+        },
+        "questions": [
+         "<p><strong>2.</strong> Alan has to study for a *math*&nbsp;*test* on Thurday.</p>\n",
+         "<p><strong>3. </strong>Alan is going to bowling on * Saturday*.</p>\n",
+         "<p><strong>4.</strong> Lucy has to give a *presentation* on Saturday.</p>\n",
+         "<p><strong>5. </strong>They agree to go out on * Sunday*.</p>\n",
+         "<p><strong>6. </strong>Alan has to finish his *science* *project* after school.</p>\n"
+        ]
+       },
+       "subContentId": "1159ac44-8098-45e3-9446-c903a659ef87",
+       "metadata": {
+        "contentType": "Điền vào chỗ trống",
+        "license": "U",
+        "title": "Không có tiêu đề Điền vào chỗ trống",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Điền vào chỗ trống"
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     },
+     {
+      "x": 55.12353578108082,
+      "y": 0,
+      "width": 7.87349148538242,
+      "height": 13.652265668344942,
+      "action": {
+       "library": "H5P.Audio 1.5",
+       "params": {
+        "fitToWrapper": true,
+        "playerMode": "minimalistic",
+        "controls": true,
+        "autoplay": false,
+        "playAudio": "Phát âm thanh",
+        "pauseAudio": "Dừng âm thanh",
+        "contentName": "Âm thanh",
+        "audioNotSupported": "Trình duyệt của bạn không thể phát âm thanh này",
+        "files": [
+         {
+          "path": "audios/audio-PpWmmBp8.mp3",
+          "mime": "audio/mpeg",
+          "copyright": {
+           "license": "U"
+          }
+         }
+        ]
+       },
+       "subContentId": "ffbc8d33-8358-4792-8442-87051e032d12",
+       "metadata": {
+        "contentType": "Audio",
+        "license": "U",
+        "title": "Không có tiêu đề Audio",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Không có tiêu đề Audio"
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     }
+    ],
+    "keywords": [],
+    "slideBackgroundSelector": {}
+   },
+   {
+    "elements": [
+     {
+      "x": 6.318082788671024,
+      "y": 12.91083348037338,
+      "width": 93.68191721132898,
+      "height": 83.92041762242698,
+      "action": {
+       "library": "H5P.Blanks 1.14",
+       "params": {
+        "media": {
+         "disableImageZooming": false
+        },
+        "text": "<p>Điền từ \"has to\" or \" have to\" vào ô trống.</p>\n",
+        "overallFeedback": [
+         {
+          "from": 0,
+          "to": 100
+         }
+        ],
+        "showSolutions": "Đáp án",
+        "tryAgain": "Thử lại",
+        "checkAnswer": "Kiểm tra",
+        "submitAnswer": "Nộp bài",
+        "notFilledOut": "Xin vui lòng điền vào tất cả các chổ trống để được xem đáp án",
+        "answerIsCorrect": "':ans' chính xác",
+        "answerIsWrong": "':ans' không chính xác",
+        "answeredCorrectly": "Câu trả lời chính xác",
+        "answeredIncorrectly": "Câu trả lời không chính xác",
+        "solutionLabel": "Câu trả lời chính xác:",
+        "inputLabel": "để trống đầu vào @num của @total",
+        "inputHasTipLabel": "Mẹo có sẵn",
+        "tipLabel": "Cách làm",
+        "behaviour": {
+         "enableRetry": true,
+         "enableSolutionsButton": true,
+         "enableCheckButton": true,
+         "autoCheck": false,
+         "caseSensitive": true,
+         "showSolutionsRequiresInput": true,
+         "separateLines": false,
+         "confirmCheckDialog": false,
+         "confirmRetryDialog": false,
+         "acceptSpellingErrors": false
+        },
+        "scoreBarLabel": "Bạn đã nhận được :num trong tổng số :total điểm",
+        "a11yCheck": "kiểm tra câu trả lời. Các câu trả lời sẽ được đánh dấu là chính xác, không chính xác hoặc chưa được trả lời.",
+        "a11yShowSolution": "Hiển thị các giải pháp. Nhiệm vụ sẽ được đánh dấu bằng giải pháp chính xác của nó.",
+        "a11yRetry": "Thử lại nhiệm vụ. Đặt lại tất cả các phản hồi và bắt đầu lại nhiệm vụ.",
+        "a11yCheckingModeHeader": "Kiểm tra chế độ",
+        "confirmCheck": {
+         "header": "Kết thúc ?",
+         "body": "bạn có chắc rằng bạn muốn kết thúc?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Kết thúc"
+        },
+        "confirmRetry": {
+         "header": "Thử lại?",
+         "body": "bạn có chắc rằng muốn thử lại?",
+         "cancelLabel": "Hủy",
+         "confirmLabel": "Xác nhận"
+        },
+        "questions": [
+         "<p><strong>1. </strong>She *has to* her homework before going to class.</p>\n",
+         "<p><strong>2. </strong>They *have to* give a presentaiton on Tuesday.</p>\n",
+         "<p><strong>3. </strong>He doesn't *have to* do the Math test on Wednesday.</p>\n",
+         "<p><strong>4. </strong>We don't *have to* do the Histore test on Saturday.</p>\n",
+         "<p>5. Does she *have to*&nbsp; bake cakes for Her mom's birthday.</p>\n"
+        ]
+       },
+       "subContentId": "cb7d8771-3872-4ecb-a313-8a0d602e38b1",
+       "metadata": {
+        "contentType": "Điền vào chỗ trống",
+        "license": "U",
+        "title": "Điền từ &quot;has to&quot; or &quot;have to&quot; vào ô trống.",
+        "authors": [],
+        "changes": [],
+        "extraTitle": "Điền từ &quot;has to&quot; or &quot;have to&quot; vào ô trống."
+       }
+      },
+      "alwaysDisplayComments": false,
+      "backgroundOpacity": 0,
+      "displayAsButton": false,
+      "buttonSize": "big",
+      "goToSlideType": "specified",
+      "invisible": false,
+      "solution": ""
+     }
+    ],
+    "keywords": [],
+    "slideBackgroundSelector": {}
+   }
+  ],
+  "keywordListEnabled": true,
+  "globalBackgroundSelector": {},
+  "keywordListAlwaysShow": false,
+  "keywordListAutoHide": false,
+  "keywordListOpacity": 90
+ },
+ "override": {
+  "activeSurface": false,
+  "hideSummarySlide": false,
+  "summarySlideSolutionButton": true,
+  "summarySlideRetryButton": true,
+  "enablePrintButton": false,
+  "social": {
+   "showFacebookShare": false,
+   "facebookShare": {
+    "url": "@currentpageurl",
+    "quote": "I scored @score out of @maxScore on a task at @currentpageurl."
+   },
+   "showTwitterShare": false,
+   "twitterShare": {
+    "statement": "I scored @score out of @maxScore on a task at @currentpageurl.",
+    "url": "@currentpageurl",
+    "hashtags": "h5p, course"
+   },
+   "showGoogleShare": false,
+   "googleShareUrl": "@currentpageurl"
+  }
+ },
+ "l10n": {
+  "slide": "Slide",
+  "score": "Score",
+  "yourScore": "Your Score",
+  "maxScore": "Max Score",
+  "total": "Total",
+  "totalScore": "Total Score",
+  "showSolutions": "Show solutions",
+  "retry": "Retry",
+  "exportAnswers": "Export text",
+  "hideKeywords": "Hide sidebar navigation menu",
+  "showKeywords": "Show sidebar navigation menu",
+  "fullscreen": "Fullscreen",
+  "exitFullscreen": "Exit fullscreen",
+  "prevSlide": "Previous slide",
+  "nextSlide": "Next slide",
+  "currentSlide": "Current slide",
+  "lastSlide": "Last slide",
+  "solutionModeTitle": "Exit solution mode",
+  "solutionModeText": "Solution Mode",
+  "summaryMultipleTaskText": "Multiple tasks",
+  "scoreMessage": "You achieved:",
+  "shareFacebook": "Share on Facebook",
+  "shareTwitter": "Share on Twitter",
+  "shareGoogle": "Share on Google+",
+  "summary": "Summary",
+  "solutionsButtonTitle": "Show comments",
+  "printTitle": "Print",
+  "printIngress": "How would you like to print this presentation?",
+  "printAllSlides": "Print all slides",
+  "printCurrentSlide": "Print current slide",
+  "noTitle": "No title",
+  "accessibilitySlideNavigationExplanation": "Use left and right arrow to change slide in that direction whenever canvas is selected.",
+  "accessibilityCanvasLabel": "Presentation canvas. Use left and right arrow to move between slides.",
+  "accessibilityProgressBarLabel": "Choose slide to display",
+  "containsNotCompleted": "@slideName contains not completed interaction",
+  "containsCompleted": "@slideName contains completed interaction",
+  "slideCount": "Slide @index of @total",
+  "containsOnlyCorrect": "@slideName only has correct answers",
+  "containsIncorrectAnswers": "@slideName has incorrect answers",
+  "shareResult": "Share Result",
+  "accessibilityTotalScore": "You got @score of @maxScore points in total",
+  "accessibilityEnteredFullscreen": "Entered fullscreen",
+  "accessibilityExitedFullscreen": "Exited fullscreen",
+  "confirmDialogHeader": "Submit your answers",
+  "confirmDialogText": "This will submit your results, do you want to continue?",
+  "confirmDialogConfirmText": "Submit and see results",
+  "slideshowNavigationLabel": "Slideshow navigation"
+ }
+}

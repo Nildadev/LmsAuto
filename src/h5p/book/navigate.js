@@ -7,18 +7,26 @@
  * InteractiveBook: bấm nút "Đọc" ở splash để mở sách, rồi điều hướng bằng nút
  *   aria-label "Trang tiếp theo"/"Trang trước". Counter dạng "n / N" ở header.
  *   Mỗi "trang" IB = 1 chapter (H5P.Column). Đã verify 7 trang.
+ *
+ * LƯU Ý lồng (nested): CP nhúng trong InteractiveBook có progressbar RIÊNG; nếu
+ * đếm .h5p-progressbar-part toàn cục sẽ trúng progressbar của SÁCH (1 part) ->
+ * sai. Luôn scope vào .h5p-course-presentation đang HIỆN.
  */
 const { sleep, humanClick } = require('../../core/stealth');
 const { clickEl } = require('./dom');
 
-/** Đếm số phần điều hướng CP. */
+/** Đếm số phần điều hướng CP (scope vào CP đang hiện). */
 async function cpPartCount(frame) {
+  const visN = await frame.locator('.h5p-course-presentation:visible').count().catch(() => 0);
+  if (visN) return frame.locator('.h5p-course-presentation:visible').last().locator('.h5p-progressbar-part').count().catch(() => 0);
   return frame.locator('.h5p-progressbar-part').count().catch(() => 0);
 }
 
-/** Đi tới slide CP thứ i bằng progressbar-part. */
+/** Đi tới slide CP thứ i bằng progressbar-part (scope vào CP đang hiện). */
 async function cpGoto(frame, i, logger) {
-  const parts = frame.locator('.h5p-progressbar-part');
+  const visN = await frame.locator('.h5p-course-presentation:visible').count().catch(() => 0);
+  const scope = visN ? frame.locator('.h5p-course-presentation:visible').last() : frame;
+  const parts = scope.locator('.h5p-progressbar-part');
   const n = await parts.count().catch(() => 0);
   if (n > i) {
     await parts.nth(i).click({ force: true }).catch(async () => { await humanClick(frame, parts.nth(i)).catch(() => {}); });

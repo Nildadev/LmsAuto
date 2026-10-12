@@ -94,7 +94,12 @@ async function solveBlanks(frame, extracted, logger) {
   // Nếu lấy cả input ẩn sẽ click nhầm node không tác dụng và timeout.
   const inputs = frame.locator('input.h5p-text-input:visible');
   const count = await inputs.count();
-  if (!count) return { solved: false, reason: 'no-visible-input' };
+  if (!count) {
+    // Không có input text nhưng là DragText (H5P.DragText) -> kéo thả từ vào ô trống.
+    const isDragText = await frame.locator('.h5p-drag-text').count().catch(() => 0);
+    if (isDragText) return solveDragText(frame, extracted, logger);
+    return { solved: false, reason: 'no-visible-input' };
+  }
   const answers = (extracted.data && extracted.data.answers) || [];
   for (let i = 0; i < count; i++) {
     const val = answers[i] !== undefined ? answers[i] : (answers[0] || 'a');
@@ -109,7 +114,75 @@ async function solveBlanks(frame, extracted, logger) {
   return { solved: true, filled: count };
 }
 
-/** Giải DragQuestion: kéo element đúng vào dropzone (theo correctElements + sort y). */
+/**
+ * Giải H5P.DragText: kéo từ (draggable) vào "Vùng thả" (ui-droppable) theo thứ tự text.
+ * DOM lms360: .h5p-drag-text > .h5p-drag-inner > .h5p-drag-task >
+ *   .h5p-drag-droppable-words chứa (.h5p-drag-dropzone-container > .ui-droppable) xen kẽ text;
+ *   các từ nằm trong .h5p-drag-draggables > .h5p-drag-draggable.
+ * Đáp án đúng lấy từ params.textField (token *từ*) theo thứ tự.
+ * @param {import('playwright').Frame|import('playwright').Locator} frame Frame hoặc container Locator (book delegate: có .locator()/.page()).
+ */
+async function solveDragText(frame, extracted, logger) {
+  const answers = ((extracted.data && extracted.data.answers) || []).filter(Boolean);
+  const zones = frame.locator('.h5p-drag-text .h5p-drag-dropzone-container > .ui-droppable:visible');
+  const words = frame.locator('.h5p-drag-text .h5p-drag-draggables-container > .ui-draggable:visible');
+  let zN = await zones.count().catch(() => 0);
+  let wN = await words.count().catch(() => 0);
+  if (!zN || !wN) return { solved: false, reason: 'no-dragtext-dom', zN, wN };
+  logger && logger(`  dragtext: ${zN} ô trống, ${wN} từ, ${answers.length} đáp án`);
+
+  const mouse = frame.page().mouse;
+  const center = async (loc) => { const b = await loc.boundingBox().catch(() => null); return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null; };
+  // Text của từ = span đầu tiên (span thứ 2 là a11y "N của M có thể kéo").
+  const wordText = async (w) => {
+    const s = words.nth(w).locator('span').first();
+    const t = await s.innerText().catch(() => '');
+    return t || await words.nth(w).innerText().catch(() => '');
+  };
+
+  let placed = 0;
+  const usedText = new Set();
+  for (let i = 0; i < zN; i++) {
+    const want = answers[i];
+    if (!want) { logger && logger(`  ô ${i}: không có đáp án (bỏ qua)`); continue; }
+    // Re-query từ mỗi lần: sau mỗi lần thả, H5P re-render bank -> index thay đổi.
+    const wNow = await words.count().catch(() => 0);
+    let target = -1;
+    for (let w = 0; w < wNow; w++) {
+      const t = (await wordText(w)).trim();
+      if (!t) continue;
+      const nt = normalizeText(t);
+      if (usedText.has(nt)) continue;
+      if (nt === normalizeText(want) || nt.includes(normalizeText(want)) || normalizeText(want).includes(nt)) { target = w; break; }
+    }
+    if (target < 0) {
+      // Fallback: thử khớp theo thứ tự (bank giữ đúng thứ tự đáp án).
+      for (let w = 0; w < wNow; w++) { const t = normalizeText(await wordText(w)); if (t && !usedText.has(t)) { target = w; break; } }
+      if (target >= 0) logger && logger(`  ô ${i}: fallback theo thứ tự -> "${(await wordText(target)).trim()}" (muốn "${want}")`);
+    }
+    if (target < 0) { logger && logger(`  ô ${i}: không thấy từ "${want}"`); continue; }
+    const chosenText = normalizeText(await wordText(target));
+    usedText.add(chosenText);
+    const from = await center(words.nth(target));
+    let to = await center(zones.nth(i));
+    if (!from || !to) continue;
+    await mouse.move(from.x, from.y, { steps: 8 });
+    await mouse.down();
+    await sleep(90);
+    await mouse.move(to.x, to.y, { steps: 16 });
+    await sleep(90);
+    await mouse.up();
+    await sleep(160);
+    placed++;
+    await humanDelay();
+  }
+  logger && logger(`  dragtext: đã thả ${placed}/${zN}`);
+  return { solved: placed > 0, placed, zones: zN };
+}
+
+/** Giải DragQuestion: kéo element đúng vào dropzone (theo correctElements + sort y).
+ * @param {import('playwright').Frame|import('playwright').Locator} frame Frame hoặc container Locator (book delegate).
+ */
 async function solveDrag(frame, extracted, logger) {
   const drags = frame.locator('.h5p-draggable:visible');
   const dzs = frame.locator('.h5p-dropzone:visible');
@@ -324,4 +397,4 @@ async function solveOne(frame, item, logger) {
   return { solved: false, reason: 'unsupported:' + kind };
 }
 
-module.exports = { solveOne, solveChoice, solveBlanks, solveDrag, solveSummary, pressCheck, pressNext, solveQuestionSet, countVisible, waitSel };
+module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, solveQuestionSet, countVisible, waitSel, normalizeText };

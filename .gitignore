@@ -14,4 +14,4 @@ yarn-error.log*
 *.pem
 .profiles
 UserSECRET.txt
-docs/
+docs/all-contents-700.json

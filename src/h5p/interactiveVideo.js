@@ -32,13 +32,15 @@ async function readInteractions(frame, jsonOverride) {
     params: a.action && a.action.params,
   }));
   // Summary của IV nằm ở iv.summary.task (KHÔNG nằm trong assets.interactions),
-  // hiển thị tại displayAt (mặc định 5s). Bổ sung như 1 interaction để giải.
+  // hiển thị dưới dạng nút/marker ở CUỐI video (.h5p-end-summary). displayAt chỉ
+  // là mốc bắt đầu CHO PHÉP mở tóm tắt, KHÔNG phải mốc dialog -> đánh dấu isSummary.
   const sum = iv.summary && iv.summary.task;
   if (sum && sum.library) {
     out.push({
       i: out.length,
-      from: typeof iv.summary.displayAt === 'number' ? iv.summary.displayAt : 5,
+      from: 0,
       to: 0,
+      isSummary: true,
       library: sum.library,
       params: sum.params,
     });
@@ -58,7 +60,7 @@ function kindOf(library) {
 async function extractList(interactions) {
   return interactions.map(it => ({
     i: it.i, from: it.from, to: it.to, library: it.library,
-    kind: kindOf(it.library),
+    kind: kindOf(it.library), isSummary: !!it.isSummary,
     extracted: extractAnswers(it.library, { params: it.params }),
   }));
 }
@@ -159,11 +161,18 @@ async function answerSingleChoiceSet(frame, extracted, logger) {
     if (qText && qText === prevQ && slide > 0) break;
     prevQ = qText;
     // Chọn đáp án khớp correctTexts; fallback cái đầu (chưa đánh dấu sai).
+    // Ưu tiên class .h5p-sc-is-correct do H5P đánh dấu sẵn (giống book/question.js).
     const altTexts = [];
     for (let i = 0; i < n; i++) altTexts.push(norm(await alts.nth(i).innerText().catch(() => '')));
     let target = -1;
-    for (let i = 0; i < n; i++) { if (texts.includes(altTexts[i])) { target = i; break; } }
-    if (target < 0) { for (let i = 0; i < n; i++) { if (texts.some((w) => altTexts[i].includes(w) || w.includes(altTexts[i]))) { target = i; break; } } }
+    for (let i = 0; i < n; i++) {
+      const isCorrect = await alts.nth(i).evaluate((el) => /h5p-sc-is-correct/.test(el.className || '')).catch(() => false);
+      if (isCorrect) { target = i; break; }
+    }
+    if (target < 0) {
+      for (let i = 0; i < n; i++) { if (texts.includes(altTexts[i])) { target = i; break; } }
+      if (target < 0) { for (let i = 0; i < n; i++) { if (texts.some((w) => altTexts[i].includes(w) || w.includes(altTexts[i]))) { target = i; break; } } }
+    }
     if (target < 0) target = 0;
     await humanClick(frame, alts.nth(target)).catch(() => {});
     totalClicks++;
@@ -269,9 +278,11 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   let solvedCount = 0;
   // Gom interaction theo mốc thời gian (from). Tại 1 mốc, H5P hiện TẤT CẢ
   // interaction cùng from trong CÙNG 1 dialog (summary + nhiều MC cùng lúc).
-  const stops = [...new Set(list.map(l => l.from))].sort((a, b) => a - b);
+  // LOẠI summary khỏi stops: nó là nút "Mở tóm tắt" ở CUỐI video, xử lý riêng.
+  const stops = [...new Set(list.filter(l => !l.isSummary).map(l => l.from))].sort((a, b) => a - b);
+  const hasSummary = list.some(l => l.isSummary);
   const deadline = Date.now() + 300000; // tối đa 5 phút
-  logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s`);
+  logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s${hasSummary ? ' + Tóm tắt(cuối)' : ''}`);
 
   const snapVideo = () => frame.evaluate(() => {
     const v = document.querySelector('video');
@@ -299,46 +310,167 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     return last;
   };
 
+  // Phát hiện video KHÔNG tua được: video nằm trong iframe YouTube (cross-origin),
+  // nên KHÔNG thể seek bằng document.querySelector('video'). Với dạng này ta chỉ
+  // có thể bấm play và chờ dialog tự hiện theo thời gian phát thực.
+  const isYoutube = await frame.evaluate(() => {
+    const hasNative = !!document.querySelector('video');
+    const yt = [...document.querySelectorAll('iframe')].some(f => /youtube\.com|youtu\.be|youtube-nocookie/.test(f.src || ''));
+    return yt && !hasNative;
+  }).catch(() => false);
+
+  // Bấm splash play (nhiều biến thể) để bắt đầu video (đặc biệt cần cho YouTube).
+  const clickSplash = async () => {
+    const sels = ['.h5p-splash-play-icon', '.h5p-splash-play', '.h5p-splash-main', '.h5p-splash'];
+    for (const s of sels) {
+      const loc = frame.locator(s).first();
+      if (await loc.count().catch(() => 0)) {
+        const b = await loc.boundingBox().catch(() => null);
+        if (b) { await frame.page().mouse.click(b.x + b.width / 2, b.y + b.height / 2).catch(() => {}); return true; }
+      }
+    }
+    return false;
+  };
+
+  // Bắt đầu video YouTube: ưu tiên API nội bộ H5P (H5P.instances[].video.play()),
+  // vì H5P tự đồng bộ đồng hồ qua YouTube iframe API để trigger dialog theo mốc.
+  // (Click thẳng iframe YouTube sẽ làm H5P MẤT đồng bộ -> dialog không bao giờ hiện.)
+  const startYoutube = async () => {
+    return await frame.evaluate(() => {
+      try {
+        const inst = (window.H5P && H5P.instances) || [];
+        const iv = inst.find(i => i && i.video && typeof i.video.play === 'function');
+        if (iv) { iv.video.play(); return true; }
+      } catch (_) {}
+      return false;
+    }).catch(() => false);
+  };
+
+  // Click marker tương tác trên seekbar -> H5P TỰ tua tới mốc và mở dialog.
+  // Áp dụng cho MỌI loại video (kể cả YouTube không seek được). Đây là cách bấm
+  // "nút chỗ hiện câu hỏi" mà H5P cung cấp sẵn.
+  // `preferIdx`: gợi ý marker thứ i (theo DOM order = thứ tự thời gian). Ta NHỚ các
+  // marker đã bấm (key phân biệt summary/stop để không đụng index) để không bấm lại.
+  const clickedMarkers = new Set();
+  const clickSeekbarMarker = async (preferIdx, summaryOnly) => {
+    const key = (i) => (summaryOnly ? `s${i}` : `m${i}`);
+    const markers = frame.locator(summaryOnly
+      ? '.h5p-end-summary, .h5p-summary-interaction'
+      : '.h5p-seekbar-interaction:not(.h5p-end-summary):visible');
+    const n = await markers.count().catch(() => 0);
+    if (!n) return false;
+    const order = [];
+    for (let i = 0; i < n; i++) order.push(i);
+    // Ưu tiên marker chưa bấm; nếu preferIdx còn trống thì đặt lên đầu.
+    order.sort((a, b) => {
+      const ca = clickedMarkers.has(key(a)) ? 1 : 0, cb = clickedMarkers.has(key(b)) ? 1 : 0;
+      if (ca !== cb) return ca - cb;
+      if (a === preferIdx) return -1; if (b === preferIdx) return 1;
+      return a - b;
+    });
+    for (const i of order) {
+      if (clickedMarkers.has(key(i))) continue;
+      const loc = markers.nth(i);
+      const title = await loc.getAttribute('title').catch(() => '');
+      // Ưu tiên click trực tiếp (tự cuộn tới); fallback toạ độ chuột.
+      let ok = false;
+      try { await loc.scrollIntoViewIfNeeded({ timeout: 1500 }); await loc.click({ timeout: 2000 }); ok = true; } catch (_) {}
+      if (!ok) {
+        const b = await loc.boundingBox().catch(() => null);
+        if (!b) continue;
+        await frame.page().mouse.click(b.x + b.width / 2, b.y + b.height / 2).catch(() => {});
+      }
+      clickedMarkers.add(key(i));
+      return { clicked: i, title };
+    }
+    return false;
+  };
+
+
+  if (isYoutube) {
+    logger('  ⓘ IV dùng YouTube (H5P.Video YouTube) — không thể tua & dialog theo mốc không kích hoạt được trong tự động hoá -> bỏ qua an toàn');
+    await clickSplash();
+    await sleep(800);
+    const started = await startYoutube();
+    logger(started ? '  ▶ đã gọi H5P API play()' : '  ⚠ không gọi được H5P API play()');
+    await sleep(1500);
+  }
+
   // QUAN TRỌNG: KHÔNG đua theo video (playbackRate cao làm vụt qua mốc sớm 0s/3s
   // khi H5P chưa kịp trigger). Thay vào đó ĐIỀU KHIỂN từng mốc: seek tới ngay
   // trước mốc -> play rate 1 -> chờ dialog. Xác định & không phụ thuộc tốc độ.
-  for (let si = 0; si < stops.length && Date.now() < deadline; si++) {
-    const stop = stops[si];
-    // Seek tới ngay TRƯỚC mốc (trừ mốc 0 -> để 0) rồi phát chậm cho H5P kịp bắt.
-    const back = stop > 0.6 ? stop - 0.4 : 0;
-    await frame.evaluate((s) => {
-      const v = document.querySelector('video');
-      if (v) { try { v.currentTime = s; v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} }
-    }, back);
-    await sleep(600);
-
-    // Nếu là mốc 0s: H5P có thể đã hiện dialog ngay khi play.
-    let snap = await waitDialog(si === 0 ? 8000 : 15000);
-    if (!snap || !snap.hasQ) {
-      // Thử seek về đúng mốc rồi phát lại (một số bản H5P cần vượt qua mốc).
+  // "job": hoặc một mốc thời gian (from) hoặc tóm tắt cuối (isSummary).
+  const jobs = stops.map(s => ({ stop: s, summary: false }));
+  if (hasSummary) jobs.push({ stop: null, summary: true });
+  for (let si = 0; si < jobs.length && Date.now() < deadline; si++) {
+    const { stop, summary: isSumJob } = jobs[si];
+    let snap;
+    if (isSumJob) {
+      // Tóm tắt: bấm nút marker "Mở tóm tắt" ở CUỐI video (.h5p-end-summary).
+      const endMk = await clickSeekbarMarker(null, true);
+      if (endMk) logger(`  ▶ bấm marker tóm tắt "${endMk.title}"`);
+      else logger('  ⚠ không thấy marker .h5p-end-summary -> thử play cuối video');
+      if (!endMk && !isYoutube) {
+        await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.currentTime = Math.max(0, v.duration - 0.5); });
+        await startYoutube();
+      }
+      snap = await waitDialog(20000);
+      if (!snap || !snap.hasQ) { logger('  ⚠ tóm tắt không hiện dialog -> bỏ qua'); continue; }
+    } else if (isYoutube) {
+      // Không (chắc chắn) tua được: dùng marker tương tác trên seekbar — H5P tự
+      // tua tới đúng mốc và mở dialog (bấm "nút chỗ hiện câu hỏi"). Đây là cách
+      // duy nhất hoạt động với YouTube, KHÔNG phụ thuộc seek của <video>.
+      const mk = await clickSeekbarMarker(si);
+      if (mk) logger(`  ▶ bấm marker seekbar #${mk.clicked} "${mk.title}" (mốc ${stop}s)`);
+      else logger(`  ⚠ không thấy marker seekbar cho mốc ${stop}s -> thử play thường`);
+      if (!mk) await startYoutube();
+      const budget = 20000;
+      const snapYt = await waitDialog(budget);
+      if (!snapYt || !snapYt.hasQ) {
+        logger(`  ⚠ mốc ${stop}s không hiện dialog trong ${Math.round(budget / 1000)}s -> bỏ qua`);
+        continue;
+      }
+      snap = snapYt;
+      if (Date.now() > deadline) break;
+    } else {
+      // Seek tới ngay TRƯỚC mốc (trừ mốc 0 -> để 0) rồi phát chậm cho H5P kịp bắt.
+      const back = stop > 0.6 ? stop - 0.4 : 0;
       await frame.evaluate((s) => {
         const v = document.querySelector('video');
-        if (v) { try { v.currentTime = s; v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
-      }, Math.max(0, stop - 0.2));
-      snap = await waitDialog(8000);
-    }
-    if (!snap || !snap.hasQ) {
-      logger(`  ⚠ mốc ${stop}s không hiện dialog -> bỏ qua`);
-      continue;
+        if (v) { try { v.currentTime = s; v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} }
+      }, back);
+      await sleep(600);
+
+      // Nếu là mốc 0s: H5P có thể đã hiện dialog ngay khi play.
+      snap = await waitDialog(si === 0 ? 8000 : 15000);
+      if (!snap || !snap.hasQ) {
+        // Thử seek về đúng mốc rồi phát lại (một số bản H5P cần vượt qua mốc).
+        await frame.evaluate((s) => {
+          const v = document.querySelector('video');
+          if (v) { try { v.currentTime = s; v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
+        }, Math.max(0, stop - 0.2));
+        snap = await waitDialog(8000);
+      }
+      if (!snap || !snap.hasQ) {
+        logger(`  ⚠ mốc ${stop}s không hiện dialog -> bỏ qua`);
+        continue;
+      }
     }
 
-    // H5P tự pause tại mốc; đảm bảo pause để đọc DOM.
+    // H5P tự pause tại mốc; đảm bảo pause để đọc DOM (chỉ khi có video native).
     await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.pause(); });
     await sleep(400);
 
     // Đọc LẠI đáp án tại thời điểm dialog hiện (lazy-load action.params).
     const liveList = await extractList(await readInteractions(frame, jsonOverride));
-    const group = liveList.filter(l => l.from === stop);
+    const group = isSumJob
+      ? liveList.filter(l => l.isSummary)
+      : liveList.filter(l => !l.isSummary && l.from === stop);
     if (!group.length) {
-      logger(`  ⚠ mốc ${stop}s chưa load kịp đáp án -> tua qua`);
+      logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${stop}s`} chưa load kịp đáp án -> tua qua`);
       continue;
     }
-    logger(`  ▶ mốc ${stop}s (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
+    logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${stop}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
     {
       // Giải TẤT CẢ interaction trong dialog tại mốc này.
 
@@ -409,7 +541,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     }
   }
   await finishVideo(frame);
-  return { solved: solvedCount, total: stops.length };
+  return { solved: solvedCount, total: stops.length + (hasSummary ? 1 : 0) };
 }
 
 /** Bấm "Tiếp tục/Continue" sau khi xem feedback trong popup IV để submit câu trả lời. */

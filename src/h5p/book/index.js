@@ -25,9 +25,10 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const QUESTION_KINDS = new Set(['choice', 'blanks', 'summary', 'dragquestion']);
 
-/** Lấy danh sách container .h5p-question đang hiển thị (DOM order). */
+/** Lấy danh sách container câu hỏi đang hiển thị (DOM order). */
 async function visibleQuestionContainers(frame) {
-  const qs = frame.locator('.h5p-question');
+  // Gồm cả các loại KHÔNG dùng .h5p-question (SingleChoiceSet, DragText...).
+  const qs = frame.locator('.h5p-question, .h5p-single-choice-set, .h5p-drag-text, .h5p-summary');
   const n = await qs.count().catch(() => 0);
   const out = [];
   for (let i = 0; i < n; i++) {
@@ -146,8 +147,9 @@ async function solvePage(frame, elements, logger) {
     return { filled, good, wrong, details };
   }
 
-  // CoursePresentation lồng trong trang IB: delegate sang solveCoursePresentation.
-  // (Trang IB nhúng 1 CP chứa nhiều slide câu hỏi -> DOM CP là nội dung đang hiện.)
+  // CoursePresentation lồng trong trang IB: giải các slide CP (delegate).
+  // LƯU Ý: KHÔNG return sớm — trang có thể có CP + các câu hỏi RIÊNG trong column
+  // (vd Lăng kính trang 0: CP + 2 MultiChoice là 2 .h5p-column-content riêng).
   const cpEl = elements.find((e) => e.kind === 'cp');
   if (cpEl && await frame.locator('.h5p-course-presentation:visible').count().catch(() => 0)) {
     try {
@@ -157,7 +159,10 @@ async function solvePage(frame, elements, logger) {
       filled += cpRes.solved; good += cpRes.solved;
       logger && logger(`  CP lồng: ${cpRes.solved}/${cpRes.slides}`);
     } catch (e) { logger && logger(`  CP lồng lỗi: ${String(e.message).slice(0, 60)}`); }
-    return { filled, good, wrong, details };
+    // Nếu KHÔNG còn container câu hỏi nào khác -> xong trang.
+    containers = await visibleQuestionContainers(frame);
+    if (!containers.length) return { filled, good, wrong, details };
+    // Ngược lại: tiếp tục giải các container còn lại (bên dưới).
   }
 
   // Đọc text của từng container để khớp nội dung (thay vì zip theo thứ tự).
