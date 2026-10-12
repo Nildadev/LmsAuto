@@ -261,7 +261,7 @@ async function runFlow(opts = {}) {
   let previewStop = async () => {};
   if (opts.capturePreview && typeof opts.onScreenshot === 'function') {
     let client = null, boundPage = null, lastSent = 0;
-    const MIN_MS = 33; // cap ~30fps để ổn định
+    const MIN_MS = 100; // cap ~10fps preview (đủ xem tiến độ, giảm mạnh tải)
     const stop = async () => {
       if (client) {
         try { await client.send('Page.stopScreencast'); } catch (_) {}
@@ -277,17 +277,21 @@ async function runFlow(opts = {}) {
         client = await context.newCDPSession(pg);
         client.on('Page.screencastFrame', async (f) => {
           const now = Date.now();
+          // Chỉ GỬI cho client tối đa ~10fps (giảm băng thông + decode phía client).
           if (now - lastSent >= MIN_MS) {
             lastSent = now;
             try { opts.onScreenshot('data:image/jpeg;base64,' + f.data); } catch (_) {}
           }
+          // LƯU Ý: PHẢI ack MỌI frame — Chromium không gửi frame kế tiếp nếu frame
+          // trước chưa được ack (nếu bỏ ack -> preview đứng). Việc giảm CPU đến từ
+          // everyNthFrame + độ phân giải + quality bên dưới, không phải từ việc bỏ ack.
           try { await client.send('Page.screencastFrameAck', { sessionId: f.sessionId }); } catch (_) {}
         });
-        const vp = (pg.viewportSize && pg.viewportSize()) || null;
         await client.send('Page.startScreencast', {
-          format: 'jpeg', quality: 50,
-          maxWidth: vp ? vp.width : 1366, maxHeight: vp ? vp.height : 768, // = size cửa sổ Chromium
-          everyNthFrame: 1,
+          format: 'jpeg', quality: 35,
+          // Giảm độ phân giải preview (960×540) -> encode JPEG nhẹ hơn nhiều so với 1366×768.
+          maxWidth: 960, maxHeight: 540,
+          everyNthFrame: 3, // encode 1/3 số frame -> giảm ~3x tải CPU renderer
         });
         boundPage = pg;
       } catch (_) { client = null; boundPage = null; }
