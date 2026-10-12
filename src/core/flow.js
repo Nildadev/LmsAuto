@@ -318,37 +318,51 @@ async function runFlow(opts = {}) {
       if (opts.blacklist === undefined && todo.length) logger('   ℹ️ parts mode: không áp blacklist mặc định');
     } else {
       const blacklist = opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST;
+      // Vẫn gọi scanAll để lấy studentName/summary (log đẹp); CHỈ dùng danh sách
+      // "việc cần làm" khi bật option doAssigned.
       const r = await d.scanAll(token, {
         logger, blacklist,
         skipEssay: opts.skipEssay, statuses: opts.statuses, fetchImpl: opts.fetchImpl,
       });
-      todo = r.todo; summary = r.summary; report.studentName = r.studentName;
+      summary = r.summary; report.studentName = r.studentName;
 
-      // Bổ sung: quét TOÀN BỘ khóa học của lớp (learn_status) để không bỏ sót bài
-      // không nằm trong "việc cần làm". Gồm CẢ phần H5P lẫn phần FILE tài liệu
-      // (file được đánh dấu hoàn thành qua API, không cần mở browser).
+      // NỀN: quét TOÀN BỘ khóa học của lớp (learn_status) — mặc định CHỈ làm phần này.
+      // Gồm CẢ phần H5P lẫn phần FILE tài liệu (file đánh dấu qua API, không mở browser).
+      const classTodo = [];
       if (opts.scanClass !== false) {
         try {
           const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
-          const have = new Set(todo.map((t) => t.p));
           let added = 0, addedFile = 0, denied = 0;
           for (const x of parts) {
-            if (have.has(x.p)) continue;
-            if (x.denied) { denied++; continue; } // bài riêng tư, tài khoản không có quyền -> bỏ qua
+            if (x.denied) { denied++; continue; } // bài riêng tư, không có quyền -> bỏ qua
             if (blacklist && blacklist.test(`${x.courseTitle || ''} ${x.title || ''}`)) continue;
-            todo.push({
+            classTodo.push({
               title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
               p: x.p, c: '', cs: x.cs, status: x.status, isFile: !!x.isFile,
             });
-            have.add(x.p);
             if (x.isFile) addedFile++; else added++;
           }
-          if (added || addedFile) logger(`➕ Bổ sung ${added} bài H5P + ${addedFile} file tài liệu từ khóa học của lớp`);
+          if (added || addedFile) logger(`📚 Khóa học của lớp: ${added} bài H5P + ${addedFile} file tài liệu chưa xong`);
           if (denied) logger(`🔒 Bỏ qua ${denied} bài riêng tư (không có quyền xem)`);
         } catch (e) {
           logger(`⚠️ Không quét được khóa học của lớp: ${String(e && e.message).slice(0, 120)}`);
         }
       }
+
+      if (opts.doAssigned === true) {
+        // BẬT: gộp bài được giao (ưu tiên lên đầu) + bài theo lớp, khử trùng theo `p`.
+        const have = new Set();
+        todo = [];
+        for (const t of [...r.todo, ...classTodo]) {
+          if (!t || !t.p || have.has(t.p)) continue;
+          have.add(t.p); todo.push(t);
+        }
+        logger(`📋 Làm bài cần làm: BẬT — ${r.todo.length} bài được giao + ${classTodo.length} bài theo lớp (gộp ${todo.length})`);
+      } else {
+        // MẶC ĐỊNH: chỉ làm bài theo khóa học của lớp.
+        todo = classTodo;
+      }
+      logger(`📋 Tổng cần giải: ${todo.length} bài`);
     }
     report.summary = summary;
     const list = opts.limit ? todo.slice(0, opts.limit) : todo;

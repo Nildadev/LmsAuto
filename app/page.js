@@ -114,6 +114,7 @@ export default function Home() {
   const [currentItem, setCurrentItem]       = useState('');
   const [theme, setTheme]                   = useState('system'); // system | light | dark
   const [scanClass, setScanClass]           = useState(true);     // quét cả khóa học của lớp
+  const [doAssigned, setDoAssigned]         = useState(false);    // làm cả bài "việc cần làm"
   const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
   const logBoxRef     = useRef(null);
   const autoScrollRef = useRef(true);
@@ -133,6 +134,7 @@ export default function Home() {
         const s = JSON.parse(savedSettings);
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
         if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
+        if (typeof s.doAssigned     === 'boolean') setDoAssigned(s.doAssigned);
         if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
       } catch { /* ignore */ }
     }
@@ -144,9 +146,9 @@ export default function Home() {
   useEffect(() => {
     if (!loadedRef.current) return;
     localStorage.setItem('lms_settings', JSON.stringify({
-      headlessMode, scanClass, blacklistSubjects,
+      headlessMode, scanClass, doAssigned, blacklistSubjects,
     }));
-  }, [headlessMode, scanClass, blacklistSubjects]);
+  }, [headlessMode, scanClass, doAssigned, blacklistSubjects]);
 
   /* Theme: áp dụng + theo dõi hệ thống khi ở chế độ system */
   useEffect(() => {
@@ -180,13 +182,11 @@ export default function Home() {
   /* Parse log -> stats (khớp engine mới src/core/flow.js) */
   const addLog = (message) => {
     setLogs((prev) => [...prev, { message, time: getTimeStamp() }]);
-    if (message.includes('cần làm')) {
-      const totalM = message.match(/cần làm: (\d+)/);
-      const assignedM = message.match(/Được giao: (\d+)/);
+    if (message.includes('Tổng cần giải')) {
+      const totalM = message.match(/Tổng cần giải: (\d+)/);
       if (totalM) {
         const total = parseInt(totalM[1]);
-        const assigned = assignedM ? parseInt(assignedM[1]) : total;
-        setStats((p) => ({ ...p, total, skipped: Math.max(0, assigned - total), completed: 0, errors: 0 }));
+        setStats((p) => ({ ...p, total, completed: 0, errors: 0 }));
       }
     }
     if (message.includes('✅ Xong')) {
@@ -220,7 +220,7 @@ export default function Home() {
       const response = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, headlessMode, blacklistSubjects: subjects, scanClass }),
+        body: JSON.stringify({ username, password, headlessMode, blacklistSubjects: subjects, scanClass, doAssigned }),
       });
       if (!response.ok) {
         addLog(`❌ Máy chủ trả về lỗi: ${response.status}`);
@@ -387,7 +387,8 @@ export default function Home() {
 
                 <div className="pt-2 space-y-3 border-t border-outline">
                   <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt chạy ẩn trên máy chủ; xem qua khung hình trực tiếp bên trái." />
-                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp, không chỉ bài trong “việc cần làm”." />
+                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp (mặc định). Tắt để chỉ dùng danh sách “việc cần làm”." />
+                  <Switch label="Làm bài cần làm" checked={doAssigned} onChange={() => setDoAssigned(!doAssigned)} disabled={isRunning} hint="Mặc định chỉ làm bài theo khóa học của lớp; bật để làm thêm bài trong “việc cần làm”." />
                 </div>
 
                 <div>

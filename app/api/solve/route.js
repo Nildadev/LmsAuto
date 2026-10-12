@@ -29,7 +29,7 @@ function release() {
 }
 
 export async function POST(request) {
-  const { username, password, headlessMode, blacklistSubjects, scanClass } = await request.json();
+  const { username, password, headlessMode, blacklistSubjects, scanClass, doAssigned } = await request.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -64,6 +64,7 @@ export async function POST(request) {
           headless: headlessMode,
           blacklist,
           scanClass: scanClass !== false, // mặc định quét cả khóa học của lớp
+          doAssigned: doAssigned === true, // mặc định TẮT: chỉ làm bài theo khóa học của lớp
           logger,
           // Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (browser headless trên host).
           capturePreview: true,

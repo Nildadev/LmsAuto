@@ -26,7 +26,13 @@ function fakeDeps(over = {}) {
   const base = {
     launch: async (o) => { calls.launch++; calls.launchOpts = o; return { browser: { close: async () => {} }, context: { close: async () => {} }, page: fakePage, token: o.token || 'TOK' }; },
     sleep: async () => {},
-    scanAll: async (token, o) => { calls.scan++; calls.scanOpts = o; return { items: [], todo: over.todo || [], summary: { overdue: { total: 0 } }, studentName: 'HS Test' }; },
+    scanAll: async (token, o) => {
+      calls.scan++; calls.scanOpts = o;
+      // Bài "được giao" thật luôn có h5p_content_id (p); đảm bảo có p để test
+      // kiểm tra được bước gộp/khử trùng theo p khi bật doAssigned.
+      const todo = (over.todo || []).map((t, i) => ({ p: t.p || `tp${i}`, ...t }));
+      return { items: todo, todo, summary: { overdue: { total: 0 } }, studentName: 'HS Test' };
+    },
     scanIncomplete: async (token, o) => { calls.scanIncomplete++; return { courses: 1, parts: over.parts || [], doneParts: 0 }; },
     videoUrl: (it) => `https://x/${it.contentId}`,
     dismissAll: async () => {},
@@ -53,7 +59,7 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: dry-run chỉ liệt kê, KHÔNG solve', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1' }, { title: 'B', subject: 'Lý', contentId: 'c2' }] });
-    const rep = await runFlow({ token: 'T', dryRun: true, logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', dryRun: true, doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(rep.total, 2);
     assert.strictEqual(rep.items.length, 2);
     assert.ok(rep.items.every((i) => i.dryRun));
@@ -63,13 +69,13 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: limit cắt danh sách', async () => {
     const { d } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1' }, { title: 'B', contentId: 'c2' }, { title: 'C', contentId: 'c3' }] });
-    const rep = await runFlow({ token: 'T', dryRun: true, limit: 2, logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', dryRun: true, doAssigned: true, limit: 2, logger: () => {}, deps: d });
     assert.strictEqual(rep.total, 2);
   });
 
   await checkAsync('runFlow: giải hết, report solved + studentName', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1' }, { title: 'B', subject: 'Lý', contentId: 'c2' }] });
-    const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(rep.solved, 2);
     assert.strictEqual(rep.failed, 0);
     assert.strictEqual(rep.studentName, 'HS Test');
@@ -80,7 +86,7 @@ function fakeDeps(over = {}) {
     let n = 0;
     const { d } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1' }, { title: 'B', contentId: 'c2' }] });
     d.solveBook = async () => { n++; if (n === 1) throw new Error('boom'); return { solved: 1, finalScore: { bar: '100%' } }; };
-    const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(rep.solved, 1);
     assert.strictEqual(rep.failed, 1);
     assert.strictEqual(rep.items[0].kind, 'error');
@@ -101,7 +107,7 @@ function fakeDeps(over = {}) {
   await checkAsync('runFlow: onProgress gọi cho từng bài', async () => {
     const { d } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1' }, { title: 'B', contentId: 'c2' }] });
     const seen = [];
-    await runFlow({ token: 'T', logger: () => {}, deps: d, onProgress: (i, total) => seen.push([i, total]) });
+    await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d, onProgress: (i, total) => seen.push([i, total]) });
     assert.deepStrictEqual(seen, [[0, 2], [1, 2]]);
   });
 
@@ -167,7 +173,7 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: bài doc được solveDoc + đếm solved', async () => {
     const { d, calls } = fakeDeps({ kind: 'doc', todo: [{ title: 'Slide', contentId: 'c1', p: 'P1', c: 'C1' }] });
-    const rep = await runFlow({ token: 'TOK999', logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'TOK999', doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(calls.solveDoc, 1);
     assert.strictEqual(rep.solved, 1);
     assert.strictEqual(rep.items[0].kind, 'doc');
@@ -184,7 +190,7 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: solve xong + item co p/cs -> markComplete(p, cs)', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1', p: 'P1', cs: 'CS1' }] });
-    const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(rep.solved, 1);
     assert.strictEqual(calls.markComplete, 1, 'phải gọi markComplete sau khi solve ok');
     assert.deepStrictEqual(calls.mcArgs, { token: 'T', p: 'P1', cs: 'CS1' });
@@ -192,7 +198,7 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: markDone=false -> KHÔNG markComplete', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1', p: 'P1', cs: 'CS1' }] });
-    await runFlow({ token: 'T', logger: () => {}, markDone: false, deps: d });
+    await runFlow({ token: 'T', doAssigned: true, logger: () => {}, markDone: false, deps: d });
     assert.strictEqual(calls.markComplete, 0);
   });
 
@@ -208,7 +214,7 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.items[0].title, 'Trắc nghiệm');
   });
 
-  await checkAsync('runFlow: quét lớp -> tài liệu (kể cả khóa chỉ có tài liệu) được thêm & solveDoc', async () => {
+  await checkAsync('runFlow: doAssigned=true -> gộp bài được giao + bài theo lớp (kể cả khóa chỉ có tài liệu)', async () => {
     const { d, calls } = fakeDeps({
       todo: [{ title: 'Video', subject: 'Tin', contentId: 'c1', p: 'PVID', cs: 'CS1' }],
       parts: [
@@ -216,11 +222,33 @@ function fakeDeps(over = {}) {
         { cs: 'CSDOC', courseTitle: 'K tài liệu', p: 'PDOCONLY', status: 0, title: 'Chỉ tài liệu.docx', isFile: true }, // khóa chỉ có tài liệu
       ],
     });
-    const rep = await runFlow({ token: 'T', logger: () => {}, deps: d });
+    const rep = await runFlow({ token: 'T', doAssigned: true, logger: () => {}, deps: d });
     assert.strictEqual(calls.scanIncomplete, 1, 'phải quét khóa của lớp');
     assert.strictEqual(rep.total, 3, 'video + 2 tài liệu');
     assert.strictEqual(calls.solveDoc, 2, 'cả 2 tài liệu gọi solveDoc (bấm xem)');
     assert.strictEqual(calls.solveBook, 1, 'video giải qua browser');
+  });
+
+  await checkAsync('runFlow: MẶC ĐỊNH (không doAssigned) chỉ làm bài theo lớp, bỏ bài được giao', async () => {
+    const { d, calls } = fakeDeps({
+      todo: [{ title: 'Được giao', subject: 'Toán', contentId: 'c1', p: 'PASSIGNED', cs: 'CS1' }],
+      parts: [
+        { cs: 'CS2', courseTitle: 'K lớp', p: 'PCLASS', status: 0, title: 'Bài lớp', isFile: false },
+      ],
+    });
+    const rep = await runFlow({ token: 'T', dryRun: true, logger: () => {}, deps: d });
+    assert.strictEqual(calls.scan, 1, 'vẫn gọi scanAll để lấy studentName');
+    assert.strictEqual(rep.total, 1, 'chỉ bài theo lớp');
+    assert.strictEqual(rep.items[0].title, 'Bài lớp');
+  });
+
+  await checkAsync('runFlow: doAssigned=true khử trùng bài theo p (không làm 2 lần)', async () => {
+    const { d } = fakeDeps({
+      todo: [{ title: 'Trùng', subject: 'Toán', contentId: 'c1', p: 'PSAME', cs: 'CS1' }],
+      parts: [{ cs: 'CS1', courseTitle: 'K1', p: 'PSAME', status: 0, title: 'Trùng', isFile: false }],
+    });
+    const rep = await runFlow({ token: 'T', dryRun: true, doAssigned: true, logger: () => {}, deps: d });
+    assert.strictEqual(rep.total, 1, 'p trùng chỉ còn 1 bài');
   });
 
   await checkAsync('deps(): override thắng giá trị mặc định', async () => {

@@ -13,6 +13,7 @@
  *                     đánh dấu hoàn thành phần pptx/pdf/doc... (chỉ gọi API)
  *   --complete-h5p    MODE H5P toàn phần: giải MỌI phần H5P chưa xong (learn_status)
  *                     rồi đánh dấu hoàn thành (markDone mặc định bật)
+ *   --do-assigned     Làm THÊM bài trong “việc cần làm” (mặc định: chỉ khóa của lớp)
  */
 const { prompt } = require('enquirer');
 const { runFlow } = require('../src/core/flow');
@@ -33,6 +34,7 @@ async function main() {
   const useDefaultBlacklist = !arg('all');
   const completeFilesMode = !!arg('complete-files');
   const completeH5pMode = !!arg('complete-h5p');
+  const doAssigned = !!arg('do-assigned');
 
   console.clear();
   console.log('=================================================');
@@ -41,6 +43,7 @@ async function main() {
   if (dryRun) console.log('   🔎 DRY-RUN — chỉ liệt kê, không giải');
   if (completeFilesMode) console.log('   📄 MODE: đánh dấu hoàn thành FILE tài liệu (không mở browser)');
   if (completeH5pMode) console.log('   🧩 MODE: giải TOÀN BỘ phần H5P chưa xong + đánh dấu hoàn thành');
+  if (doAssigned) console.log('   📌 Làm THÊM bài trong “việc cần làm” (mặc định chỉ khóa của lớp)');
   console.log('=================================================\n');
 
   const response = await prompt([
@@ -80,6 +83,7 @@ async function main() {
       dryRun,
       limit,
       parts: completeH5pMode,
+      doAssigned,
       blacklist: useDefaultBlacklist ? undefined : null,
       logger: console.log,
     });
