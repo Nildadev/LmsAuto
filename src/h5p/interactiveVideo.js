@@ -40,14 +40,14 @@ async function readInteractions(frame, jsonOverride) {
   if (sum && sum.library) {
     out.push({
       i: out.length,
-      from: 0,
+      from: Number(iv.summary.displayAt) || 0,
       to: 0,
       isSummary: true,
       library: sum.library,
       params: sum.params,
     });
   }
-  return { items: out, seekLocked: locked };
+  return { items: out, seekLocked: locked, summaryDisplayAt: Number(iv.summary && iv.summary.displayAt) || 0 };
 }
 
 function kindOf(library) {
@@ -278,7 +278,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   if (seekLocked) logger('  (i) Bai KHOA tua (preventSkipping) -> play 1x xuyen suot, khong seek');
   if (!interactions.length) { logger('IV: không có interactions'); return { solved: 0, total: 0 }; }
   const list = await extractList(interactions);
-  logger(`IV: ${list.length} interactions`, list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' '));
+  logger(`IV: ${list.length} interactions [${list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' ')}]`);
 
   let solvedCount = 0;
   // Gom interaction theo mốc thời gian (from). Tại 1 mốc, H5P hiện TẤT CẢ
@@ -287,7 +287,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   const stops = [...new Set(list.filter(l => !l.isSummary).map(l => l.from))].sort((a, b) => a - b);
   const hasSummary = list.some(l => l.isSummary);
   const deadline = Date.now() + 300000; // tối đa 5 phút
-  logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s${hasSummary ? ' + Tóm tắt(cuối)' : ''}`);
+  logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s${hasSummary ? ` + Tóm tắt(cuối, displayAt=${ri.summaryDisplayAt}s)` : ''}`);
 
   // Đọc current time: với video native là <video>.currentTime; với YouTube
   // (cross-origin iframe, không có <video> trong frame) phải đọc qua H5P
@@ -308,6 +308,15 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     const answers = document.querySelectorAll('.h5p-answer').length;
     // SingleChoiceSet dùng .h5p-sc-alternative (KHÔNG có .h5p-answer).
     const sc = document.querySelectorAll('.h5p-sc-alternative').length;
+    // Dialog interaction đang MỞ: nhận diện TỔNG QUÁT (MultiChoice/DragText/Blanks/
+    // DragQuestion/... đều có .h5p-question hoặc nút kiểm tra/continue đang hiển thị).
+    // Trước đây chỉ đếm .h5p-answer/.h5p-sc -> bỏ sót dialog loại khác (bug "không
+    // hiện dialog" dù dialog đã mở).
+    const isVis = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
+    let dlg = 0;
+    for (const el of document.querySelectorAll(
+      '.h5p-question, .h5p-question-check-answer, .h5p-question-iv-continue, .h5p-drag-text, .h5p-blanks, .h5p-drag-question, .h5p-mark-the-words'
+    )) if (isVis(el)) dlg++;
     let t = v ? +v.currentTime.toFixed(1) : null;
     if (t == null) {
       try {
@@ -320,7 +329,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       t,
       dur: v ? v.duration : 0,
       paused: v ? v.paused : null,
-      hasQ: summary || answers || sc,
+      hasQ: summary || answers || sc || dlg,
     };
   }).catch(() => ({ t: 0, dur: 0, paused: null, hasQ: 0 }));
 
@@ -386,7 +395,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     const key = (i) => (summaryOnly ? `s${i}` : `m${i}`);
     const markers = frame.locator(summaryOnly
       ? '.h5p-end-summary, .h5p-summary-interaction'
-      : '.h5p-seekbar-interaction:not(.h5p-end-summary):visible');
+      : '.h5p-seekbar-interaction:not(.h5p-end-summary):not(.h5p-summary-interaction):visible');
     const n = await markers.count().catch(() => 0);
     if (!n) return false;
     const order = [];
@@ -416,6 +425,82 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     return false;
   };
 
+  // Bấm "nút tương tác" H5P hiện TRÊN VIDEO (.h5p-interaction-button — nút màu,
+  // vd blanks/tóm tắt) hoặc marker trên seekbar. Đưa video về sát mốc trước để
+  // nút của mốc đó xuất hiện, phát chậm để không vượt qua. Đây là cách H5P thực
+  // sự mở dialog (seek thẳng currentTime KHÔNG làm H5P bật dialog — verify qua DOM).
+  // `si`: chỉ số marker (theo thứ tự thời gian) để bấm ĐÚNG marker của mốc này.
+  const clickInteractionButton = async (stop, si, summaryOnly) => {
+    if (!isYoutube && stop != null) {
+      await frame.evaluate((s) => {
+        const v = document.querySelector('video');
+        if (v) { try { v.muted = true; v.currentTime = Math.max(0, s - 0.4); v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
+      }, stop);
+    }
+    // (1) Nút tương tác TRÊN VIDEO (blanks/other) — chỉ hiện quanh mốc.
+    const end = Date.now() + 3000;
+    while (Date.now() < end) {
+      const btn = frame.locator('.h5p-interaction-button:visible').first();
+      if (await btn.count().catch(() => 0)) {
+        const box = await btn.boundingBox().catch(() => null);
+        if (box && box.width) {
+          await frame.page().mouse.click(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+          return { sel: '.h5p-interaction-button' };
+        }
+      }
+      await sleep(250);
+    }
+    // (2) Marker trên seekbar (choice...) — chọn theo đúng thứ tự mốc.
+    return await clickSeekbarMarker(summaryOnly ? null : si, !!summaryOnly);
+  };
+
+  // Đưa video native tới HẾT (để H5P dựng màn kết thúc + nút tóm tắt). Bấm nút
+  // tóm tắt khi video CHƯA chạy hết thì H5P không mở dialog — đây là bug gặp ở
+  // bài IV CHỈ có Tóm tắt (không có mốc dừng nào). Seek sát cuối + play cho hết,
+  // poll `ended`; duration có thể chưa sẵn nên thử lại nhiều lần. Trả true nếu tới cuối.
+  const driveToEnd = async (timeoutMs) => {
+    const end = Date.now() + timeoutMs;
+    while (Date.now() < end) {
+      const st = await frame.evaluate(() => {
+        const v = document.querySelector('video');
+        if (!v) return null;
+        const d = v.duration;
+        if (isFinite(d) && d > 0 && !v.ended) { try { v.currentTime = Math.max(0, d - 0.4); } catch (_) {} }
+        try { v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {}
+        return { t: v.currentTime, d, ended: v.ended };
+      }).catch(() => null);
+      if (!st) return false;
+      if (st.ended || (isFinite(st.d) && st.d > 0 && st.t >= st.d - 0.6)) return true;
+      await sleep(600);
+    }
+    return false;
+  };
+
+  // Chẩn đoán: dump trạng thái DOM liên quan tới tóm tắt/marker để biết vì sao
+  // dialog không mở (chỉ in khi gặp lỗi, gọn để không làm nhiễu log).
+  const dumpSummaryDom = async (tag) => {
+    const info = await frame.evaluate(() => {
+      const cnt = (sel) => document.querySelectorAll(sel).length;
+      const v = document.querySelector('video');
+      // Marker trên seekbar (điểm tương tác) — tìm nút tương tác của tóm tắt.
+      const markers = [...document.querySelectorAll('.h5p-seekbar-interaction')].slice(0, 20).map((m) => ({
+        c: String(m.className).replace('h5p-seekbar-interaction', '').trim() || '(plain)',
+        title: m.getAttribute('title'),
+      }));
+      return {
+        t: v ? +v.currentTime.toFixed(1) : null, d: v ? v.duration : null, paused: v ? v.paused : null, ended: v ? v.ended : null,
+        seekbar: cnt('.h5p-seekbar-interaction'),
+        intButton: cnt('.h5p-interaction-button'),
+        interaction: cnt('.h5p-interaction'),
+        question: cnt('.h5p-question'),
+        continue: cnt('.h5p-question-iv-continue'),
+        summaryRows: cnt('.h5p-summary li'),
+        markers,
+      };
+    }).catch(() => null);
+    logger(`  🐞 DOM(${tag}): ${JSON.stringify(info)}`);
+  };
+
 
   // Khởi động video MỘT lần CHỈ khi bài KHÓA tua (seekLocked): lúc này ta PHẢI
   // play xuyên suốt, H5P tự pause ở mỗi mốc. Với bài CHO tua, việc tua/play sẽ
@@ -442,20 +527,47 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   // "job": hoặc một mốc thời gian (from) hoặc tóm tắt cuối (isSummary).
   const jobs = stops.map(s => ({ stop: s, summary: false }));
   if (hasSummary) jobs.push({ stop: null, summary: true });
+  let dumpedStop = false; // chỉ dump DOM 1 lần/ bài khi mốc không hiện dialog
   for (let si = 0; si < jobs.length && Date.now() < deadline; si++) {
     const { stop, summary: isSumJob } = jobs[si];
     let snap;
     if (isSumJob) {
-      // Tóm tắt: bấm nút marker "Mở tóm tắt" ở CUỐI video (.h5p-end-summary).
-      const endMk = await clickSeekbarMarker(null, true);
-      if (endMk) logger(`  ▶ bấm marker tóm tắt "${endMk.title}"`);
-      else logger('  ⚠ không thấy marker .h5p-end-summary -> thử play cuối video');
-      if (!endMk && !isYoutube) {
-        await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.currentTime = Math.max(0, v.duration - 0.5); });
-        await startYoutube();
+      // Tóm tắt cũng là 1 interaction có "NÚT MÀU trên video" (.h5p-interaction-button),
+      // hiện ở mốc displayAt (hoặc ở màn kết thúc). Đưa video tới đúng mốc rồi BẤM nút.
+      const sumAt = (ri.summaryDisplayAt && ri.summaryDisplayAt > 0) ? ri.summaryDisplayAt : null;
+      let opened = null;
+      if (sumAt != null) opened = await clickInteractionButton(sumAt, null, true);
+      if (!opened) {
+        // Không rõ mốc -> cho video chạy hết rồi thử nút ở màn kết thúc.
+        if (!isYoutube) {
+          const reached = await driveToEnd(seekLocked ? 20000 : 9000);
+          logger(reached ? '  ▶ video đã tới cuối -> mở tóm tắt' : '  ⚠ video chưa tới cuối, vẫn thử mở tóm tắt');
+          await sleep(700);
+        }
+        // Tóm tắt có thể đã hiện inline trên màn kết thúc -> không bấm nếu đã có rows.
+        snap = await snapVideo();
+        if (!snap || !snap.hasQ) {
+          opened = await clickInteractionButton(null, null, true);
+          if (!opened) {
+            const endBtn = frame.locator('.h5p-end-summary, .h5p-summary-interaction').first();
+            if (await endBtn.count().catch(() => 0)) {
+              await endBtn.click({ timeout: 2500 }).catch(() => {});
+              opened = { sel: '.h5p-end-summary' };
+            }
+          }
+        }
       }
+      if (opened) logger(`  ▶ bấm nút tóm tắt ${opened.sel || opened.title || ''}`);
       snap = await waitDialog(20000);
-      if (!snap || !snap.hasQ) { logger('  ⚠ tóm tắt không hiện dialog -> bỏ qua'); continue; }
+      // Vẫn chưa mở -> thử bấm nút tóm tắt đang hiển thị lần cuối.
+      if (!snap || !snap.hasQ) {
+        const endBtn2 = frame.locator('.h5p-interaction-button:visible, .h5p-end-summary:visible, .h5p-summary-interaction:visible').first();
+        if (await endBtn2.count().catch(() => 0)) {
+          await endBtn2.click({ timeout: 2500 }).catch(() => {});
+          snap = await waitDialog(10000);
+        }
+      }
+      if (!snap || !snap.hasQ) { await dumpSummaryDom('sum-fail'); logger('  ⚠ tóm tắt không hiện dialog -> bỏ qua'); continue; }
     } else if (seekLocked) {
       // BÀI KHÓA TUA (preventSkipping): KHÔNG được tua — play xuyên suốt, H5P tự
       // pause ở mốc và mở dialog. Chỉ chờ dialog hiện theo thời gian phát thực
@@ -467,45 +579,20 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         logger(`  ⚠ (play-through) không hiện dialog trong ${Math.round(budget / 1000)}s -> bỏ qua mốc ${stop}s`);
         continue;
       }
-    } else if (isYoutube) {
-      // BÀI CHO TUA + YouTube: tua qua marker tương tác trên seekbar — H5P tự
-      // map sang YouTube seek và mở dialog (bấm "nút chỗ hiện câu hỏi"). Đây là
-      // cách duy nhất "tua" được YouTube, KHÔNG phụ thuộc seek của <video>.
-      const mk = await clickSeekbarMarker(si);
-      if (mk) logger(`  ▶ bấm marker seekbar #${mk.clicked} "${mk.title}" (mốc ${stop}s)`);
-      else logger(`  ⚠ không thấy marker seekbar cho mốc ${stop}s -> thử play thường`);
-      if (!mk) await startYoutube();
-      const budget = 20000;
-      const snapYt = await waitDialog(budget);
-      if (!snapYt || !snapYt.hasQ) {
-        logger(`  ⚠ mốc ${stop}s không hiện dialog trong ${Math.round(budget / 1000)}s -> bỏ qua`);
-        continue;
-      }
-      snap = snapYt;
-      if (Date.now() > deadline) break;
     } else {
-      // Seek tới ngay TRƯỚC mốc (trừ mốc 0 -> để 0) rồi phát chậm cho H5P kịp bắt.
-      const back = stop > 0.6 ? stop - 0.4 : 0;
-      await frame.evaluate((s) => {
-        const v = document.querySelector('video');
-        if (v) { try { v.currentTime = s; v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} }
-      }, back);
-      await sleep(600);
-
-      // Nếu là mốc 0s: H5P có thể đã hiện dialog ngay khi play.
-      snap = await waitDialog(si === 0 ? 8000 : 15000);
+      // BÀI CHO TUA: BẤM "nút tương tác" H5P hiện trên video (nút màu) hoặc
+      // marker seekbar để H5P tự mở dialog. Seek thẳng <video>.currentTime KHÔNG
+      // làm H5P bật dialog (đã verify qua DOM: video chạy qua mốc không pause).
+      const mk = await clickInteractionButton(stop, si);
+      if (mk) logger(`  ▶ bấm ${mk.sel || mk.title || 'marker'} (mốc ${stop}s)`);
+      else logger(`  ⚠ không thấy nút tương tác cho mốc ${stop}s`);
+      snap = await waitDialog(15000);
       if (!snap || !snap.hasQ) {
-        // Thử seek về đúng mốc rồi phát lại (một số bản H5P cần vượt qua mốc).
-        await frame.evaluate((s) => {
-          const v = document.querySelector('video');
-          if (v) { try { v.currentTime = s; v.playbackRate = 0.5; v.play().catch(() => {}); } catch (_) {} }
-        }, Math.max(0, stop - 0.2));
-        snap = await waitDialog(8000);
-      }
-      if (!snap || !snap.hasQ) {
+        if (!dumpedStop) { dumpedStop = true; await dumpSummaryDom('stop-fail'); }
         logger(`  ⚠ mốc ${stop}s không hiện dialog -> bỏ qua`);
         continue;
       }
+      if (Date.now() > deadline) break;
     }
 
     // H5P tự pause tại mốc; đảm bảo pause để đọc DOM (chỉ khi có video native).

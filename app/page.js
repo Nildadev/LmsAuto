@@ -27,13 +27,13 @@ function StatCard({ value, label, icon, tone = 'neutral' }) {
     neutral: 'bg-surface-container text-on-surface-variant',
   };
   return (
-    <div className="md-card p-5 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${tones[tone]}`}>
-        <span className="material-symbols-outlined">{icon}</span>
+    <div className="md-card p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0 ${tones[tone]}`}>
+        <span className="material-symbols-outlined text-[20px] sm:text-[24px]">{icon}</span>
       </div>
       <div className="min-w-0">
-        <div className="text-[28px] font-semibold leading-none text-on-surface">{value}</div>
-        <div className="text-[13px] text-on-surface-variant mt-1 truncate">{label}</div>
+        <div className="text-[22px] sm:text-[28px] font-semibold leading-none text-on-surface">{value}</div>
+        <div className="text-[12px] sm:text-[13px] text-on-surface-variant mt-1 truncate">{label}</div>
       </div>
     </div>
   );
@@ -264,13 +264,13 @@ export default function Home() {
 
       {/* ── Top app bar ─────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-50 bg-surface border-b border-outline">
-        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-[26px]">school</span>
-            <span className="text-[18px] font-medium text-on-surface">LMS360 Auto Solver</span>
-            <span className="text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container">v2.0</span>
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <span className="material-symbols-outlined text-primary text-[24px] sm:text-[26px] shrink-0">school</span>
+            <span className="text-[15px] sm:text-[18px] font-medium text-on-surface truncate">LMS360 Auto Solver</span>
+            <span className="hidden sm:inline text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">v2.0</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
               onClick={cycleTheme}
@@ -283,16 +283,16 @@ export default function Home() {
             </button>
             <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
               <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-success md-pulse' : 'bg-outline'}`} />
-              {isRunning ? 'Đang chạy…' : 'Sẵn sàng'}
+              <span className="hidden sm:inline">{isRunning ? 'Đang chạy…' : 'Sẵn sàng'}</span>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-[1400px] mx-auto p-6 space-y-6">
+      <main className="max-w-[1400px] mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
 
         {/* ── Stats ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatCard value={stats.total}     label="Tổng bài" icon="library_books" tone="primary" />
           <StatCard value={stats.completed} label="Đã xong"  icon="task_alt"      tone="success" />
           <StatCard value={stats.errors}    label="Lỗi"      icon="error"         tone="error" />
@@ -300,10 +300,10 @@ export default function Home() {
         </div>
 
         {/* ── Work area ─────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
 
           {/* Left: preview + log */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
+          <div className="lg:col-span-8 flex flex-col gap-4 sm:gap-6">
 
             {/* Live preview */}
             <div className="md-card overflow-hidden">
@@ -340,7 +340,7 @@ export default function Home() {
             </div>
 
             {/* Log */}
-            <div className="md-card overflow-hidden flex flex-col h-[360px]">
+            <div className="md-card overflow-hidden flex flex-col h-[280px] sm:h-[360px]">
               <div className="flex items-center justify-between px-4 h-11 border-b border-outline">
                 <div className="flex items-center gap-2 text-[13px] text-on-surface-variant">
                   <span className="material-symbols-outlined text-[18px]">terminal</span>
@@ -360,7 +360,7 @@ export default function Home() {
                 ) : (
                   logs.map((log, i) => (
                     <div key={i} className="flex gap-2 md-in">
-                      <span className="text-on-surface-variant/50 w-8 shrink-0 text-right select-none text-[11px] pt-[2px]">{i + 1}</span>
+                      <span className="hidden sm:inline text-on-surface-variant/50 w-8 shrink-0 text-right select-none text-[11px] pt-[2px]">{i + 1}</span>
                       <span className="text-on-surface-variant shrink-0 text-[12px]">[{log.time}]</span>
                       <span className={`${getLogStyle(log.message)} break-words`}>{log.message}</span>
                     </div>
@@ -374,10 +374,10 @@ export default function Home() {
 
           {/* Right: controls */}
           <div className="lg:col-span-4">
-            <div className="md-card p-6 flex flex-col h-full">
+            <div className="md-card p-5 sm:p-6 flex flex-col">
               <h2 className="text-headline-md text-on-surface mb-5">Bắt đầu</h2>
 
-              <form onSubmit={startAutomation} className="flex flex-col gap-4 flex-1">
+              <form onSubmit={startAutomation} className="flex flex-col gap-4">
                 <TextField id="username" label="Tài khoản" value={username} onChange={(e) => setUsername(e.target.value)} disabled={isRunning} required />
                 <TextField id="password" label="Mật khẩu" type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isRunning} required />
 
@@ -419,7 +419,7 @@ export default function Home() {
                 )}
 
                 <button type="submit" disabled={isRunning}
-                  className="mt-auto w-full py-3.5 md-btn text-[14px] font-medium flex items-center justify-center gap-2">
+                  className="w-full py-3.5 md-btn text-[14px] font-medium flex items-center justify-center gap-2">
                   <span className="material-symbols-outlined text-[20px]">{isRunning ? 'hourglass_top' : 'bolt'}</span>
                   {isRunning ? 'Đang chạy…' : 'Bắt đầu'}
                 </button>
@@ -431,7 +431,7 @@ export default function Home() {
       </main>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between text-[12px] text-on-surface-variant">
+      <footer className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-1 text-[12px] text-on-surface-variant">
         <span>© 2026 Nildadev · Apache-2.0</span>
         <span>LMS360 Auto Solver v2.0</span>
       </footer>

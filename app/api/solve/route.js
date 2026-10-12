@@ -1,17 +1,47 @@
 import { runFlow } from '../../../src/core/flow';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 3600; // cho phép phiên chạy dài (giây) trên host có hỗ trợ
+
+// ── Nhiều người dùng cùng lúc ───────────────────────────────────────────────
+// MỖI request = 1 phiên riêng: runFlow() tự launch() một browser Playwright
+// riêng biệt (context độc lập), nên nhiều người dùng chạy song song không đụng
+// nhau. Ở đây chỉ chặn trần số phiên đồng thời để không làm sập máy chủ; phần
+// dư sẽ xếp hàng chờ (có thông báo vị trí) thay vì bị từ chối ngay.
+const MAX_CONCURRENT = Math.max(1, Number(process.env.LMS_MAX_CONCURRENT) || 3);
+const MAX_QUEUE = Math.max(1, Number(process.env.LMS_MAX_QUEUE) || 20);
+
+let running = 0;
+const waiters = [];
+
+/** Xin 1 slot chạy. resolve(0) nếu chạy ngay, resolve(vị trí) nếu phải chờ. */
+function acquire() {
+  if (running < MAX_CONCURRENT) { running++; return Promise.resolve(0); }
+  if (waiters.length >= MAX_QUEUE) return Promise.reject(new Error('Máy chủ đang bận (hàng đợi đầy). Vui lòng thử lại sau ít phút.'));
+  return new Promise((resolve) => waiters.push(resolve));
+}
+
+/** Trả slot; nếu có người chờ thì nhường luôn cho người kế tiếp. */
+function release() {
+  const next = waiters.shift();
+  if (next) next(0);       // nhường slot (running không đổi)
+  else running = Math.max(0, running - 1);
+}
 
 export async function POST(request) {
-  const { username, password, debugMode, headlessMode, autoConfirm, blacklistSubjects, scanClass } = await request.json();
+  const { username, password, headlessMode, blacklistSubjects, scanClass } = await request.json();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const logger = (message) => {
-        controller.enqueue(encoder.encode(JSON.stringify({ message }) + '\n'));
+      let closed = false;
+      const send = (obj) => {
+        if (closed) return;
+        try { controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n')); } catch (_) { closed = true; }
       };
+      const logger = (message) => send({ message });
 
+      let slot = false;
       try {
         // Dùng chung engine mới (src/core/flow.js) với CLI — thay vì lib/automation.js
         // cũ đã lỗi thời. Map params từ web sang runFlow:
@@ -22,6 +52,12 @@ export async function POST(request) {
           ? new RegExp(subjects.map((s) => String(s).trim()).filter(Boolean).join('|'), 'i')
           : undefined;
 
+        // Xin slot chạy (nhiều người dùng -> mỗi người 1 browser riêng).
+        if (running >= MAX_CONCURRENT) logger(`⏳ Máy chủ đang chạy ${running}/${MAX_CONCURRENT} phiên — bạn vào hàng đợi chờ tới lượt…`);
+        await acquire();
+        slot = true;
+        logger(`🖥️ Bắt đầu phiên (đang chạy ${running}/${MAX_CONCURRENT} phiên song song)`);
+
         await runFlow({
           username,
           password,
@@ -29,23 +65,22 @@ export async function POST(request) {
           blacklist,
           scanClass: scanClass !== false, // mặc định quét cả khóa học của lớp
           logger,
-          // debugMode/autoConfirm không áp dụng: runFlow không prompt và scan qua API.
           // Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (browser headless trên host).
           capturePreview: true,
           onScreenshot: (dataUrl) => {
-            try {
-              // Backpressure: client đọc chậm -> bỏ frame để không phình bộ đệm.
-              if (controller.desiredSize !== null && controller.desiredSize < 0) return;
-              controller.enqueue(encoder.encode(JSON.stringify({ screenshot: dataUrl }) + '\n'));
-            } catch (_) { /* stream đã đóng */ }
+            // Backpressure: client đọc chậm -> bỏ frame để không phình bộ đệm.
+            if (controller.desiredSize !== null && controller.desiredSize < 0) return;
+            send({ screenshot: dataUrl });
           },
         });
 
-        controller.enqueue(encoder.encode(JSON.stringify({ done: true }) + '\n'));
+        send({ done: true });
       } catch (error) {
-        controller.enqueue(encoder.encode(JSON.stringify({ error: error && error.message ? error.message : String(error) }) + '\n'));
+        send({ error: error && error.message ? error.message : String(error) });
       } finally {
-        controller.close();
+        if (slot) release();
+        closed = true;
+        try { controller.close(); } catch (_) {}
       }
     },
   });

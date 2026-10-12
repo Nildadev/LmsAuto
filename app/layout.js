@@ -5,6 +5,17 @@ export const metadata = {
   description: 'Tự động đăng nhập, làm bài và hoàn thành khóa học trên lms360.vn',
 };
 
+// Hỗ trợ mobile: bề rộng theo thiết bị + màu thanh trạng thái theo theme.
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f8fafd' },
+    { media: '(prefers-color-scheme: dark)', color: '#131314' },
+  ],
+};
+
 // Đặt theme sớm (trước khi render) để tránh nháy sáng/tối.
 const themeInit = `
 (function(){
