@@ -24,6 +24,8 @@ async function readInteractions(frame, jsonOverride) {
   if (!iv && jc.params && jc.params.interactiveVideo) iv = jc.params.interactiveVideo;
   iv = iv || {};
   const assets = iv.assets || {};
+  const sm = (iv.override && iv.override.preventSkippingMode) || 'none';
+  const locked = String(sm).toLowerCase() === 'forward' || String(sm).toLowerCase() === 'both';
   const out = ((assets.interactions) || []).map((a, i) => ({
     i,
     from: (a.duration && a.duration.from) || 0,
@@ -45,7 +47,7 @@ async function readInteractions(frame, jsonOverride) {
       params: sum.params,
     });
   }
-  return out;
+  return { items: out, seekLocked: locked };
 }
 
 function kindOf(library) {
@@ -270,7 +272,10 @@ async function answerSummaryInPopup(frame, qc, extracted, logger) {
  * @returns {Promise<{solved:number,total:number}>}
  */
 async function solveVideo(page, frame, logger = log, jsonOverride) {
-  const interactions = await readInteractions(frame, jsonOverride);
+  const ri = await readInteractions(frame, jsonOverride);
+  const interactions = ri.items || ri;
+  const seekLocked = !!(ri && ri.seekLocked);
+  if (seekLocked) logger('  (i) Bai KHOA tua (preventSkipping) -> play 1x xuyen suot, khong seek');
   if (!interactions.length) { logger('IV: không có interactions'); return { solved: 0, total: 0 }; }
   const list = await extractList(interactions);
   logger(`IV: ${list.length} interactions`, list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' '));
@@ -284,14 +289,35 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   const deadline = Date.now() + 300000; // tối đa 5 phút
   logger(`IV: ${stops.length} mốc dừng tại [${stops.join(', ')}]s${hasSummary ? ' + Tóm tắt(cuối)' : ''}`);
 
+  // Đọc current time: với video native là <video>.currentTime; với YouTube
+  // (cross-origin iframe, không có <video> trong frame) phải đọc qua H5P
+  // instance (H5P.instances[].video.getCurrentTime()). Dùng chung cho mọi loại.
+  const getCurrentTime = () => frame.evaluate(() => {
+    try {
+      const inst = (window.H5P && H5P.instances) || [];
+      const iv = inst.find(i => i && i.video && typeof i.video.getCurrentTime === 'function');
+      if (iv) return +iv.video.getCurrentTime().toFixed(1);
+    } catch (_) {}
+    const v = document.querySelector('video');
+    return v ? +v.currentTime.toFixed(1) : null;
+  }).catch(() => null);
+
   const snapVideo = () => frame.evaluate(() => {
     const v = document.querySelector('video');
     const summary = document.querySelectorAll('.h5p-summary li[data-bit], .h5p-summary li').length;
     const answers = document.querySelectorAll('.h5p-answer').length;
     // SingleChoiceSet dùng .h5p-sc-alternative (KHÔNG có .h5p-answer).
     const sc = document.querySelectorAll('.h5p-sc-alternative').length;
+    let t = v ? +v.currentTime.toFixed(1) : null;
+    if (t == null) {
+      try {
+        const inst = (window.H5P && H5P.instances) || [];
+        const iv = inst.find(i => i && i.video && typeof i.video.getCurrentTime === 'function');
+        if (iv) t = +iv.video.getCurrentTime().toFixed(1);
+      } catch (_) {}
+    }
     return {
-      t: v ? +v.currentTime.toFixed(1) : null,
+      t,
       dur: v ? v.duration : 0,
       paused: v ? v.paused : null,
       hasQ: summary || answers || sc,
@@ -310,9 +336,12 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     return last;
   };
 
-  // Phát hiện video KHÔNG tua được: video nằm trong iframe YouTube (cross-origin),
-  // nên KHÔNG thể seek bằng document.querySelector('video'). Với dạng này ta chỉ
-  // có thể bấm play và chờ dialog tự hiện theo thời gian phát thực.
+  // Phát hiện video YouTube: nằm trong iframe cross-origin nên KHÔNG có thẻ
+  // <video> trong frame này -> KHÔNG thể seek bằng .currentTime. Tuy nhiên việc
+  // "tua" vẫn có thể thực hiện qua marker tương tác trên seekbar (H5P tự map
+  // sang YouTube seek). Quan TRỌNG: YouTube hay không KHÔNG quyết định bài có
+  // cho tua hay không — điều đó do cờ seekLocked (preventSkippingMode) của BÀI
+  // học. YouTube cho tua -> bấm marker; YouTube khóa tua -> play xuyên suốt.
   const isYoutube = await frame.evaluate(() => {
     const hasNative = !!document.querySelector('video');
     const yt = [...document.querySelectorAll('iframe')].some(f => /youtube\.com|youtu\.be|youtube-nocookie/.test(f.src || ''));
@@ -347,8 +376,9 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   };
 
   // Click marker tương tác trên seekbar -> H5P TỰ tua tới mốc và mở dialog.
-  // Áp dụng cho MỌI loại video (kể cả YouTube không seek được). Đây là cách bấm
-  // "nút chỗ hiện câu hỏi" mà H5P cung cấp sẵn.
+  // Dùng cho bài CHO TUA (kể cả YouTube, vì H5P map marker sang YouTube seek) —
+  // tức là bấm "nút chỗ hiện câu hỏi" mà H5P cung cấp sẵn. Với bài KHÓA tua
+  // (seekLocked) thì KHÔNG dùng hàm này mà play xuyên suốt.
   // `preferIdx`: gợi ý marker thứ i (theo DOM order = thứ tự thời gian). Ta NHỚ các
   // marker đã bấm (key phân biệt summary/stop để không đụng index) để không bấm lại.
   const clickedMarkers = new Set();
@@ -387,13 +417,23 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   };
 
 
-  if (isYoutube) {
-    logger('  ⓘ IV dùng YouTube (H5P.Video YouTube) — không thể tua & dialog theo mốc không kích hoạt được trong tự động hoá -> bỏ qua an toàn');
-    await clickSplash();
-    await sleep(800);
-    const started = await startYoutube();
-    logger(started ? '  ▶ đã gọi H5P API play()' : '  ⚠ không gọi được H5P API play()');
-    await sleep(1500);
+  // Khởi động video MỘT lần CHỈ khi bài KHÓA tua (seekLocked): lúc này ta PHẢI
+  // play xuyên suốt, H5P tự pause ở mỗi mốc. Với bài CHO tua, việc tua/play sẽ
+  // do từng mốc tự xử lý trong vòng lặp (native seek hoặc bấm marker YouTube),
+  // không cần khởi động play ở đây.
+  if (seekLocked) {
+    if (isYoutube) {
+      logger('  (i) IV YouTube + bai KHOA tua -> play 1x xuyen suot, khong seek');
+      await clickSplash();
+      await sleep(800);
+      const started = await startYoutube();
+      logger(started ? '  ▶ đã gọi H5P API play()' : '  ⚠ không gọi được H5P API play()');
+      await sleep(1500);
+    } else {
+      logger('  (i) IV native + bai KHOA tua -> play 1x xuyen suot, khong seek');
+      await frame.evaluate(() => { const v = document.querySelector('video'); if (v) { try { v.muted = true; v.playbackRate = 1; v.play().catch(() => {}); } catch (_) {} } });
+      await sleep(1000);
+    }
   }
 
   // QUAN TRỌNG: KHÔNG đua theo video (playbackRate cao làm vụt qua mốc sớm 0s/3s
@@ -416,10 +456,21 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       }
       snap = await waitDialog(20000);
       if (!snap || !snap.hasQ) { logger('  ⚠ tóm tắt không hiện dialog -> bỏ qua'); continue; }
+    } else if (seekLocked) {
+      // BÀI KHÓA TUA (preventSkipping): KHÔNG được tua — play xuyên suốt, H5P tự
+      // pause ở mốc và mở dialog. Chỉ chờ dialog hiện theo thời gian phát thực
+      // (dùng toàn bộ thời gian còn lại trong deadline). Áp dụng cho CẢ YouTube
+      // và native (đã khởi động play ở trên).
+      const budget = Math.min(120000, Math.max(15000, deadline - Date.now()));
+      snap = await waitDialog(budget);
+      if (!snap || !snap.hasQ) {
+        logger(`  ⚠ (play-through) không hiện dialog trong ${Math.round(budget / 1000)}s -> bỏ qua mốc ${stop}s`);
+        continue;
+      }
     } else if (isYoutube) {
-      // Không (chắc chắn) tua được: dùng marker tương tác trên seekbar — H5P tự
-      // tua tới đúng mốc và mở dialog (bấm "nút chỗ hiện câu hỏi"). Đây là cách
-      // duy nhất hoạt động với YouTube, KHÔNG phụ thuộc seek của <video>.
+      // BÀI CHO TUA + YouTube: tua qua marker tương tác trên seekbar — H5P tự
+      // map sang YouTube seek và mở dialog (bấm "nút chỗ hiện câu hỏi"). Đây là
+      // cách duy nhất "tua" được YouTube, KHÔNG phụ thuộc seek của <video>.
       const mk = await clickSeekbarMarker(si);
       if (mk) logger(`  ▶ bấm marker seekbar #${mk.clicked} "${mk.title}" (mốc ${stop}s)`);
       else logger(`  ⚠ không thấy marker seekbar cho mốc ${stop}s -> thử play thường`);
@@ -462,15 +513,26 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     await sleep(400);
 
     // Đọc LẠI đáp án tại thời điểm dialog hiện (lazy-load action.params).
-    const liveList = await extractList(await readInteractions(frame, jsonOverride));
+    const liveRaw = await readInteractions(frame, jsonOverride);
+    const liveList = await extractList(liveRaw.items || liveRaw);
+    // Với play-through (seekLocked) ta KHÔNG tua tới mốc cụ thể, nên xác định mốc
+    // đang active theo thời gian phát thực (snap.t). Với tua bình thường, dialog
+    // hiện đúng mốc đã seek -> dùng luôn stop.
+    const activeFrom = isSumJob ? null : (seekLocked ? (() => {
+      const t = (snap && snap.t != null) ? snap.t : null;
+      if (t == null) return stop;
+      let best = null;
+      for (const s of stops) if (s <= t + 1.5) best = s;
+      return best == null ? stop : best;
+    })() : stop);
     const group = isSumJob
       ? liveList.filter(l => l.isSummary)
-      : liveList.filter(l => !l.isSummary && l.from === stop);
+      : liveList.filter(l => !l.isSummary && l.from === activeFrom);
     if (!group.length) {
-      logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${stop}s`} chưa load kịp đáp án -> tua qua`);
+      logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${activeFrom}s`} chưa load kịp đáp án -> tua qua`);
       continue;
     }
-    logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${stop}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
+    logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${activeFrom}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
     {
       // Giải TẤT CẢ interaction trong dialog tại mốc này.
 
