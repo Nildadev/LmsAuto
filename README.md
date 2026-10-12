@@ -93,6 +93,21 @@ node scripts/cli.js --complete-files
 
 Phần H5P được bỏ qua (`skippedH5p`) để solver H5P xử lý riêng.
 
+### 🧩 Chế độ giải TOÀN BỘ phần H5P còn nợ
+
+`learn_status` của mỗi khóa liệt kê các phần H5P **chưa hoàn thành** (status 0/2) —
+kể cả bài không có trong "việc cần làm". Chế độ này mở từng phần, giải bằng solver
+(chọn đúng đáp án), rồi **đánh dấu hoàn thành server-side** (player H5P không tự
+gọi `learn_status status=3` khi solver bấm "Tóm tắt & gửi" — đã verify):
+
+```bash
+node scripts/cli.js --complete-h5p            # giải + đánh dấu mọi phần H5P còn nợ
+node scripts/cli.js --complete-h5p --dry-run  # chỉ liệt kê
+```
+
+Lưu ý: bài H5P dùng video **YouTube** nhúng (cross-origin iframe) không thể tua/tương
+tác marker trong tự động hoá — solver bỏ qua an toàn và KHÔNG đánh dấu (không gian lận).
+
 ```
 =================================================
    LMS360 AUTO SOLVER Made With ❤️ By Nildadev

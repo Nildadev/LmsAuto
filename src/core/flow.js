@@ -21,6 +21,8 @@ const { solveBook } = require('../h5p/book');
 const { solveVideo } = require('../h5p/interactiveVideo');
 const { solveOne, pressCheck } = require('../h5p/solver');
 const { solveDoc } = require('../h5p/doc');
+const { markComplete } = require('../h5p/doc');
+const { scanIncomplete } = require('./complete');
 
 const DEFAULT_WAIT_MS = 7000;
 
@@ -31,6 +33,7 @@ function deps(overrides = {}) {
     solveOne, pressCheck, collectH5P, extractAnswers,
     solveSingle, newTab: null,
     solveDoc, detectKind, DEFAULT_BLACKLIST,
+    markComplete, scanIncomplete,
     ...overrides,
   };
 }
@@ -174,11 +177,24 @@ async function runFlow(opts = {}) {
   });
 
   try {
-    const { todo, summary, studentName } = await d.scanAll(token, {
-      logger, blacklist: opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST,
-      skipEssay: opts.skipEssay, statuses: opts.statuses, fetchImpl: opts.fetchImpl,
-    });
-    report.studentName = studentName;
+    // ── PARTS MODE (--complete-h5p): dùng learn_status toàn khóa thay my_assigned_pending ──
+    // Liệt kê MỌI phần H5P (type=0) chưa hoàn thành -> mở từng phần, giải, đánh dấu xong.
+    let todo = [], summary = {};
+    if (opts.parts) {
+      const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
+      todo = parts.filter((x) => !x.isFile).map((x) => ({
+        title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
+        p: x.p, c: '', cs: x.cs, status: x.status,
+      }));
+      logger(`🧩 Parts mode: ${todo.length} phần H5P chưa hoàn thành (bỏ qua file — dùng --complete-files)`);
+      if (opts.blacklist === undefined && todo.length) logger('   ℹ️ parts mode: không áp blacklist mặc định');
+    } else {
+      const r = await d.scanAll(token, {
+        logger, blacklist: opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST,
+        skipEssay: opts.skipEssay, statuses: opts.statuses, fetchImpl: opts.fetchImpl,
+      });
+      todo = r.todo; summary = r.summary; report.studentName = r.studentName;
+    }
     report.summary = summary;
     const list = opts.limit ? todo.slice(0, opts.limit) : todo;
     report.total = list.length;
@@ -202,7 +218,18 @@ async function runFlow(opts = {}) {
       }
       const entry = { title: it.title, subject: it.subject, ...res };
       report.items.push(entry);
-      if (res.ok) { report.solved++; logger(`  ✅ Xong (${res.kind})`); }
+      if (res.ok) {
+        report.solved++;
+        logger(`  ✅ Xong (${res.kind})`);
+        // Đánh dấu hoàn thành server-side (learn_status status=3) — player H5P
+        // KHÔNG tự gọi API này khi solver bấm "Tóm tắt & gửi", nên ta gọi trực tiếp.
+        // (kind=doc đã được solveDoc đánh dấu rồi -> bỏ qua.)
+        if (opts.markDone !== false && res.kind !== 'doc' && it.p && it.cs) {
+          const m = await d.markComplete(token, it.p, it.cs, logger, opts).catch(() => null);
+          if (m && m.ok) logger('  🏁 Đã đánh dấu hoàn thành (learn_status=3)');
+          else if (m) logger(`  ⚠️ Đánh dấu hoàn thành thất bại (HTTP ${m.status})`);
+        }
+      }
       else { report.failed++; logger('  ⚠️ Chưa xác nhận hoàn thành'); }
       if (typeof opts.onProgress === 'function') opts.onProgress(i, list.length, entry);
       if (i < list.length - 1) await d.sleep(opts.betweenMs || 2500 + Math.floor(Math.random() * 2500));
