@@ -123,21 +123,21 @@ async function solvePage(frame, elements, logger) {
         try {
           await btn.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
           await btn.click({ timeout: 3000 });
-          await sleep(800);
+          await sleep(500);
           const dlg = frame.locator('.h5p-popup-wrapper:visible, .h5p-dialog:visible').last();
           const cont = (await dlg.count().catch(() => 0)) ? dlg.locator('.h5p-question').first() : frame.locator('.h5p-question:visible').last();
           const vis = await cont.isVisible().catch(() => false);
           if (vis && el) {
             const r = await solveElement(frame, cont, el, logger).catch((e) => ({ err: String(e.message) }));
             await pressCheckIn(dlg, logger).catch(() => {});
-            await sleep(700);
+            await sleep(450);
             popupFilled += (r && r.clicked) || (r && r.filled) || 0;
           }
         } catch (e) { logger && logger(`    popup ${b} lỗi: ${String(e.message).slice(0, 50)}`); }
         const close = frame.locator('.h5p-popup-wrapper:visible .h5p-close, .h5p-dialog:visible .h5p-close, .h5p-close:visible, button[aria-label*="Đóng"]:visible, button[aria-label*="Close"]:visible').first();
         if (await close.isVisible().catch(() => false)) { await close.click({ timeout: 2000 }).catch(() => {}); }
         else { await frame.page().keyboard.press('Escape').catch(() => {}); }
-        await sleep(400);
+        await sleep(250);
       }
       if (popupFilled > 0 || !hasRealQ) return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: cpBtnN }] };
       // Có cả container thường lẫn popup -> gộp (hiếm). Trả về tổng popup + tiếp tục bên dưới.
@@ -216,7 +216,7 @@ async function solvePage(frame, elements, logger) {
       attempt: () => solveElement(frame, container, el, logger),
       check: async () => { await pressCheckIn(container, logger).catch(() => {}); await waitFeedback(container, 1200); },
       feedback: () => readFeedback(container),
-      retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(700); return ok; },
+      retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(450); return ok; },
       maxAttempts: 3,
       logger,
     }).catch((e) => ({ solved: false, correct: 0, wrong: 0, err: String(e.message) }));

@@ -17,7 +17,7 @@ async function findBookFrame(page, timeoutMs = 25000) {
         if (await frame.evaluate((sel) => !!document.querySelector(sel), BOOK_SELECTOR)) return frame;
       } catch (_) {}
     }
-    await sleep(600);
+    await sleep(400);
   }
   return null;
 }

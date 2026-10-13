@@ -13,20 +13,31 @@ const CLOSE_TEXTS = ['Để sau', 'Bỏ qua', 'Đóng', 'Không, cảm ơn', 'Ca
  */
 async function dismissModals(page) {
   let closed = 0;
-  // 1. Thử bấm nút theo text trong page chính
-  for (const t of CLOSE_TEXTS) {
-    const btn = page.locator(`button:has-text("${t}"), .ant-modal-footer button:has-text("${t}"), a:has-text("${t}")`).first();
-    try {
-      if (await btn.count()) { await btn.click({ timeout: 2000, force: true }); closed++; await sleep(400); }
-    } catch (_) {}
-  }
+  // 1. Thử bấm nút theo text trong page chính.
+  // Đọc nhãn của MỌI button/link đang hiện trong 1 lượt rồi dò theo text, thay vì
+  // 7 lượt locator + 7 lượt count cho MỖI lần gọi (dismissAll chạy sau mỗi lần goto).
+  try {
+    const links = page.locator('button:visible, a:visible');
+    const labels = await links.allInnerTexts().catch(() => []);
+    const used = new Set();
+    for (const t of CLOSE_TEXTS) {
+      const lt = t.toLowerCase();
+      const idx = labels.findIndex((s, i) => !used.has(i) && (s || '').toLowerCase().includes(lt));
+      if (idx >= 0) {
+        used.add(idx);
+        await links.nth(idx).click({ timeout: 2000, force: true }).catch(() => {});
+        closed++;
+        await sleep(200);
+      }
+    }
+  } catch (_) {}
   // 2. Nút X của ant-modal
   try {
     const xs = page.locator('.ant-modal-close, .ant-modal-wrap .anticon-close, button.ant-modal-close');
     const n = await xs.count();
     for (let i = 0; i < n; i++) { await xs.nth(i).click({ timeout: 1500, force: true }).catch(() => {}); closed++; }
   } catch (_) {}
-  await sleep(500);
+  await sleep(250);
   return closed;
 }
 

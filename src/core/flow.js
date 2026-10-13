@@ -468,7 +468,7 @@ async function runFlow(opts = {}) {
         }
         else { failedKeys.add(key); logger('  ⚠️ Chưa xác nhận hoàn thành'); }
         if (typeof opts.onProgress === 'function') opts.onProgress(i, list.length, entry);
-        if (i < list.length - 1) await d.sleep(opts.betweenMs || 1000 + Math.floor(Math.random() * 1000));
+        if (i < list.length - 1) await d.sleep(opts.betweenMs || 400 + Math.floor(Math.random() * 500));
       }
     }
 

@@ -17,7 +17,10 @@ const PROFILE_DIR = path.join(process.cwd(), '.profiles', 'lms360');
 
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const humanDelay = () => sleep(rand(120, 520));
+// Nghỉ ngắn giữa các hành động. Trước đây 120-520ms (trung bình ~320ms) cộng dồn
+// rất nhiều vì mỗi câu hỏi có thể click 1-4 đáp án. Vẫn giữ độ trễ ngẫu nhiên để
+// nhịp không đều, nhưng ngắn hơn nhiều.
+const humanDelay = () => sleep(rand(40, 140));
 
 /** Inject token HCM vào localStorage trước khi trang load (chạy trong page). */
 function injectTokenScript(token) {
@@ -136,7 +139,7 @@ function toPage(pageOrFrame) {
   return (pageOrFrame && typeof pageOrFrame.page === 'function') ? pageOrFrame.page() : pageOrFrame;
 }
 
-/** Click kiểu người: di chuột cong -> xuống -> lên (trusted event). */
+/** Click kiểu người: di chuột tới đích rồi nhấn/nhả (trusted event qua CDP). */
 async function humanClick(page, locator) {
   const pg = toPage(page);
   try {
@@ -144,11 +147,12 @@ async function humanClick(page, locator) {
     if (!box) return locator.click({ timeout: 4000 });
     const x = box.x + box.width * (0.3 + Math.random() * 0.4);
     const y = box.y + box.height * (0.3 + Math.random() * 0.4);
-    await pg.mouse.move(rand(200, 500), rand(150, 400), { steps: rand(4, 9) });
-    await pg.mouse.move(x, y, { steps: rand(10, 22) });
-    await sleep(rand(60, 180));
+    // TỐI ƯU: 1 lần move ngắn (2-4 bước) + nhấn/nhả nhanh. Trước đây move 2 lần
+    // (1 lần xa 4-9 bước + 1 lần 10-22 bước) = 14-31 event mousemove mà trang phải
+    // xử lý, cộng 3 sleep (~200ms). Vẫn là trusted event thật, chỉ bớt "diễn".
+    await pg.mouse.move(x, y, { steps: rand(2, 4) });
+    await sleep(rand(15, 40));
     await pg.mouse.down();
-    await sleep(rand(35, 120));
     await pg.mouse.up();
     return true;
   } catch (_) {

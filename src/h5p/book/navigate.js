@@ -30,7 +30,7 @@ async function cpGoto(frame, i, logger) {
   const n = await parts.count().catch(() => 0);
   if (n > i) {
     await parts.nth(i).click({ force: true }).catch(async () => { await humanClick(frame, parts.nth(i)).catch(() => {}); });
-    await sleep(1400);
+    await sleep(900);
     logger && logger(`  goto slide ${i} (part ${i + 1}/${n})`);
     return true;
   }
@@ -46,7 +46,7 @@ async function openInteractiveBook(frame, logger) {
   const read = frame.locator('button:has-text("Đọc"), .h5p-interactive-book-read-button, button.h5p-read').first();
   if (await read.count().catch(() => 0)) {
     await read.click({ force: true }).catch(() => {});
-    await sleep(3000);
+    await sleep(1800);
     logger && logger('  pressed "Đọc" (mở sách)');
     return true;
   }
@@ -72,7 +72,7 @@ async function ibNext(frame, logger) {
     if (b) { b.click(); return true; }
     return false;
   }).catch(() => false);
-  if (ok) { await sleep(1800); logger && logger('  IB next page'); }
+  if (ok) { await sleep(1100); logger && logger('  IB next page'); }
   return ok;
 }
 
@@ -83,7 +83,7 @@ async function ibPrev(frame, logger) {
     if (b) { b.click(); return true; }
     return false;
   }).catch(() => false);
-  if (ok) { await sleep(1800); logger && logger('  IB prev page'); }
+  if (ok) { await sleep(1100); logger && logger('  IB prev page'); }
   return ok;
 }
 
@@ -92,7 +92,7 @@ async function ibSubmit(frame, logger) {
   const btn = frame.locator('.h5p-interactive-book-summary-menu-button, button:has-text("Tóm tắt")').first();
   if (await btn.count().catch(() => 0)) {
     await clickEl(frame, btn, logger);
-    await sleep(2500);
+    await sleep(1500);
     logger && logger('  pressed "Tóm tắt & gửi"');
     return true;
   }

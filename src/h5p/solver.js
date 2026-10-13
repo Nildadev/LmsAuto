@@ -106,7 +106,7 @@ async function solveBlanks(frame, extracted, logger) {
     await inp.click({ timeout: 4000 });
     await sleep(60);
     await inp.fill('');
-    await inp.type(val, { delay: 55 });
+    await inp.type(val, { delay: 25 });
     await humanDelay();
   }
   logger && logger(`blanks: filled ${count}/${answers.length} answers`);
@@ -419,12 +419,12 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
       if (hasDrag > 0) return solveDrag(frame, item, logger);
       return { solved: false };
     };
-    const checkFn = async () => { await sleep(400); await pressCheck(frame, logger); await waitFeedback(frame, 1500); };
+    const checkFn = async () => { await sleep(250); await pressCheck(frame, logger); await waitFeedback(frame, 1500); };
     const fbFn = async () => frame.evaluate(() => {
       const vis = (sel) => [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null).length;
       return { wrong: vis('.h5p-wrong'), correct: vis('.h5p-correct') };
     }).catch(() => ({}));
-    const retryFn = async () => { const ok = await pressRetry(frame, logger); if (ok) await sleep(900); return ok; };
+    const retryFn = async () => { const ok = await pressRetry(frame, logger); if (ok) await sleep(500); return ok; };
 
     let rr = { solved: false, correct: 0, wrong: 0 };
     try {
@@ -435,13 +435,13 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
     if (isCorrect) correctCount++;
     const hasNext = await pressNext(frame, logger);
     logger(`  result=${JSON.stringify({ correct: rr.correct, wrong: rr.wrong, attempts: rr.attempts })} correct=${isCorrect} next=${hasNext}`);
-    if (hasNext) { await sleep(1000); }
+    if (hasNext) { await sleep(600); }
     else {
       // Sai -> thử "Đáp án" rồi Next (sang câu sau nhưng không tính điểm)
       const showSol = frame.locator('button:has-text("Đáp án")').first();
       if ((await showSol.count().catch(() => 0)) && (await showSol.isVisible().catch(() => false))) {
-        await humanClick(frame, showSol); await sleep(800);
-        if (await pressNext(frame, logger)) { await sleep(1000); continue; }
+        await humanClick(frame, showSol); await sleep(500);
+        if (await pressNext(frame, logger)) { await sleep(600); continue; }
       }
       logger('  dừng (không Next được)'); break;
     }

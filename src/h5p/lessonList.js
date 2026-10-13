@@ -75,7 +75,7 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
     // Quay lại danh sách cho sạch (bài trước có thể đã điều hướng khỏi list).
     if (i > 0) {
       await tab.goto(lessonUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      await sleep(1200);
+      await sleep(900);
       await d.dismissAll(tab).catch(() => {});
       // Frame cũ có thể đã detach sau khi goto -> tìm lại.
       frame = (await d.findPlayerFrame(tab, 12000).catch(() => null)) || frame;
@@ -87,7 +87,7 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
     if (fresh && wantTitle) { const j = fresh.findIndex((x) => x.title === wantTitle); if (j >= 0) idx = j; }
     const clicked = await clickItem(frame, idx);
     if (!clicked) { log(`  (list) không mở được bài ${i + 1}`); continue; }
-    await sleep(1800);
+    await sleep(1100);
 
     const sub = await d.findPlayerFrame(tab, 12000).catch(() => null);
     if (!sub) { log(`  (list) bài ${i + 1} không thấy player`); continue; }
@@ -99,7 +99,7 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
     else if (kind === 'iv') res = await d.solveVideo(tab, sub, logger).catch(() => ({ solved: 0 }));
     else if (kind === 'single') res = await d.solveSingle(tab, sub, library, logger, d).catch(() => ({ solved: 0 }));
     if (res && res.solved > 0) { solved++; log(`  ✅ (list) xong bài ${i + 1}`); }
-    await sleep(800);
+    await sleep(500);
   }
   return { solved, total: list.length };
 }
