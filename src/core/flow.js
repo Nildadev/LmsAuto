@@ -178,12 +178,12 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     return { ok: !!result.solved, kind: 'doc', url, result };
   }
   const { tab, frame } = await openItem(page, url, logger, opts, d);
-  const closeTab = async () => { try { await tab.close(); } catch (_) {} };
+  // try/finally: LUÔN đóng tab + reset currentTab dù detectKind/solver NÉM lỗi.
+  // Trước đây throw giữa chừng -> tab rò rỉ (không đóng) + preview chụp tab chết.
+  try {
   if (!frame) {
     logger('  ⚠️ Không tìm thấy frame player');
     await dumpNoFrame(tab, logger).catch(() => {});
-    await closeTab();
-    d.currentTab = null; // tab đã đóng -> preview quay về trang chính (tránh chụp tab chết)
     return { ok: false, kind: 'unknown', url };
   }
 
@@ -226,10 +226,12 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
   // Bài khoá tua (preventSkipping) bị solver bỏ qua: KHÔNG tính là lỗi, KHÔNG
   // đánh dấu hoàn thành. runFlow sẽ đếm vào report.skipped.
   const skipped = !!(result && result.skippedLocked);
-  await closeTab();
-  d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính
   // Ưu tiên kind do solver cụ thể trả về (vd 'doc') nếu có, nếu không giữ kind detect được.
   return { ok, skipped, kind: (result && result.kind) || kind, library, url, result };
+  } finally {
+    try { await tab.close(); } catch (_) {}
+    d.currentTab = null; // tab đã đóng -> quay lại chụp trang chính (tránh chụp tab chết)
+  }
 }
 
 /**
@@ -388,6 +390,8 @@ async function runFlow(opts = {}) {
     // Trạng thái CUỐI theo item (khử trùng giữa các vòng quét lại).
     const keyOf = (it) => it.p || `${it.subject || ''}|${it.title || ''}`;
     const solvedKeys = new Set(), failedKeys = new Set(), skippedKeys = new Set();
+    const itemsByKey = new Map(); // report.items khử trùng theo key (giữ trạng thái CUỐI)
+    let progressDone = 0;         // đếm xuyên các vòng cho onProgress (không reset về 0)
     const initialTotal = list.length;
 
     // Quét lại learn_status -> danh sách bài còn status≠3 (để làm tiếp ở vòng sau).
@@ -445,43 +449,54 @@ async function runFlow(opts = {}) {
           res = { ok: false, kind: 'error', error: String(e && e.message).slice(0, 200), url: d.videoUrl(it) };
         }
         const entry = { title: it.title, subject: it.subject, round: round + 1, ...res };
-        report.items.push(entry);
         const key = keyOf(it);
+        // Khử trùng report.items giữa các vòng: 1 bài chỉ 1 dòng (trạng thái cuối).
+        itemsByKey.set(key, entry);
         if (res.skipped) {
           // Bài khoá tua -> bỏ qua, KHÔNG tính lỗi, KHÔNG đánh dấu hoàn thành.
-          skippedKeys.add(key);
+          skippedKeys.add(key); solvedKeys.delete(key); failedKeys.delete(key);
           if (it.p) skippedLockedIds.add(it.p);
           logger('  ⏭️ Bỏ qua (khoá tua) — không tính lỗi');
         }
         else if (res.ok) {
-          solvedKeys.add(key); failedKeys.delete(key);
-          logger(`  ✅ Xong (${res.kind})`);
-          // Đánh dấu hoàn thành server-side (learn_status status=3) — player H5P
-          // KHÔNG tự gọi API này khi solver bấm "Tóm tắt & gửi", nên ta gọi trực tiếp.
-          // (kind=doc đã được solveDoc đánh dấu rồi -> bỏ qua.)
+          // Chỉ coi là HOÀN THÀNH khi đánh dấu server-side (learn_status=3) thành công.
+          // markDone=false (người dùng tự tắt) hoặc kind=doc (solveDoc đã đánh dấu)
+          // thì bỏ qua bước này. Trước đây add solvedKeys VÔ ĐIỀU KIỆN -> bài giải
+          // xong trên trình duyệt nhưng đánh dấu thất bại vẫn báo "đã xong".
+          let marked = true;
           if (opts.markDone !== false && res.kind !== 'doc') {
             if (!it.p || !it.cs) {
-              // Thiếu ID -> không gọi được learn_status. Log RÕ thay vì chặn âm thầm
-              // (trước đây bài báo "chưa hoàn thành" mà không hiểu vì sao).
+              // Thiếu ID -> không gọi được learn_status -> KHÔNG chắc đã hoàn thành.
+              marked = false;
               logger(`  ⚠️ Thiếu ${!it.p ? 'p (h5p_content_id)' : 'cs (course_id)'} — không đánh dấu hoàn thành được`);
             } else {
               const m = await d.markComplete(token, it.p, it.cs, logger, opts).catch(() => null);
               if (m && m.ok) logger('  🏁 Đã đánh dấu hoàn thành (learn_status=3)');
-              else if (m) logger(`  ⚠️ Đánh dấu hoàn thành thất bại (HTTP ${m.status})`);
+              else { marked = false; logger(`  ⚠️ Đánh dấu hoàn thành thất bại${m ? ` (HTTP ${m.status})` : ''}`); }
             }
           }
+          if (marked) { solvedKeys.add(key); failedKeys.delete(key); logger(`  ✅ Xong (${res.kind})`); }
+          else { failedKeys.add(key); solvedKeys.delete(key); logger('  ⚠️ Chưa xác nhận hoàn thành (đánh dấu server thất bại)'); }
         }
-        else { failedKeys.add(key); logger('  ⚠️ Chưa xác nhận hoàn thành'); }
-        if (typeof opts.onProgress === 'function') opts.onProgress(i, list.length, entry);
+        else { failedKeys.add(key); solvedKeys.delete(key); logger('  ⚠️ Chưa xác nhận hoàn thành'); }
+        if (typeof opts.onProgress === 'function') {
+          progressDone++;
+          // Index không reset về 0 mỗi vòng; total luôn >= index -> i < total.
+          opts.onProgress(progressDone - 1, Math.max(initialTotal, progressDone), entry);
+        }
         if (i < list.length - 1) await d.sleep(opts.betweenMs || 400 + Math.floor(Math.random() * 500));
       }
     }
 
     // Report phản ánh trạng thái CUỐI (khử trùng giữa các vòng).
-    report.total = initialTotal;
+    // total = số bài THỰC SỰ đã xử lý (solved+failed+skipped) -> không bao giờ vượt
+    // quá số bài đã làm, kể cả khi có limit + quét lại thêm bài mới ở vòng sau
+    // (trước đây lấy initialTotal nên solved có thể > total khi vòng 2 giải thêm).
+    report.total = solvedKeys.size + failedKeys.size + skippedKeys.size;
     report.solved = solvedKeys.size;
     report.failed = failedKeys.size;
     report.skipped = skippedKeys.size;
+    report.items = [...itemsByKey.values()];
     logger(`\n📊 Kết quả: ${report.solved}/${report.total} bài xác nhận xong, ${report.failed} lỗi.`);
     if (report.skipped > 0) logger(`   ⏭️ Bỏ qua ${report.skipped} bài khoá tua (không tính lỗi).`);
     return report;

@@ -74,7 +74,7 @@ function fakeDeps(over = {}) {
   });
 
   await checkAsync('runFlow: giải hết, report solved + studentName', async () => {
-    const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1' }, { title: 'B', subject: 'Lý', contentId: 'c2' }] });
+    const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1', cs: 'CS1' }, { title: 'B', subject: 'Lý', contentId: 'c2', cs: 'CS1' }] });
     const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
     assert.strictEqual(rep.solved, 2);
     assert.strictEqual(rep.failed, 0);
@@ -84,7 +84,7 @@ function fakeDeps(over = {}) {
 
   await checkAsync('runFlow: lỗi 1 bài không dừng cả flow', async () => {
     let n = 0;
-    const { d } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1' }, { title: 'B', contentId: 'c2' }] });
+    const { d } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1', cs: 'CS1' }, { title: 'B', contentId: 'c2', cs: 'CS1' }] });
     d.solveBook = async () => { n++; if (n === 1) throw new Error('boom'); return { solved: 1, finalScore: { bar: '100%' } }; };
     const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
     assert.strictEqual(rep.solved, 1);
@@ -202,6 +202,25 @@ function fakeDeps(over = {}) {
     assert.strictEqual(calls.markComplete, 0);
   });
 
+  await checkAsync('runFlow R4: markComplete thất bại -> KHÔNG solved (chưa xác nhận)', async () => {
+    const { d, calls } = fakeDeps({ todo: [{ title: 'A', contentId: 'c1', p: 'P1', cs: 'CS1' }] });
+    d.markComplete = async () => { calls.markComplete++; return { ok: false, status: 500 }; };
+    const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
+    assert.strictEqual(calls.markComplete, 1, 'có thử đánh dấu');
+    assert.strictEqual(rep.solved, 0, 'đánh dấu thất bại -> KHÔNG tính solved');
+    assert.strictEqual(rep.failed, 1, 'tính là chưa xác nhận hoàn thành');
+  });
+
+  await checkAsync('solveItem R4: solver throw -> vẫn ĐÓNG tab (try/finally)', async () => {
+    const { d } = fakeDeps({ kind: 'book' });
+    let closed = 0;
+    const tab = { goto: async () => {}, mouse: { click: async () => {} }, close: async () => { closed++; } };
+    d.newTab = async () => tab;
+    d.solveBook = async () => { throw new Error('boom'); };
+    await assert.rejects(() => solveItem(fakePage, { contentId: 'c1' }, () => {}, {}, d));
+    assert.strictEqual(closed, 1, 'tab phải được đóng dù solver ném lỗi');
+  });
+
   await checkAsync('runFlow: parts=true -> todo từ scanIncomplete (bỏ file), KHÔNG scanAll', async () => {
     const { d, calls } = fakeDeps({ parts: [
       { cs: 'CS1', courseTitle: 'K1', p: 'PH5P', status: 2, title: 'Trắc nghiệm', isFile: false },
@@ -292,6 +311,7 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.solved, 1, 'vòng 2 xong -> solved');
     assert.strictEqual(rep.failed, 0, 'không còn failed sau khi xong');
     assert.strictEqual(calls.scanIncomplete, 2, 'quét lần đầu + 1 lần quét lại');
+    assert.strictEqual(rep.items.length, 1, 'report.items khử trùng giữa các vòng (1 bài 1 dòng)');
   });
 
   await checkAsync('runFlow M7: không tiến triển -> dừng quét lại (không lặp vô hạn)', async () => {
