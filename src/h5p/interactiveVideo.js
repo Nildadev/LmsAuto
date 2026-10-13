@@ -10,6 +10,32 @@ const { solveBlanks, solveDragText, pressAllRetries, waitFeedback } = require('.
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
+/* ── Phán quyết 1 mốc có được tính "đã giải" không ──────────────────────────
+ * Selector feedback ĐỌC ĐƯỢC SAU khi bấm Kiểm tra.
+ * LƯU Ý QUAN TRỌNG: KHÔNG đưa `.h5p-sc-is-correct` vào đây — H5P đánh dấu sẵn đáp
+ * án đúng của SingleChoiceSet TỪ ĐẦU (xem answerSingleChoiceSet), không phải kết
+ * quả sau khi trả lời; nếu tính vào sẽ luôn báo "đúng".
+ * `.h5p-sc-is-wrong` thêm vào vì nó LÀ feedback sau khi click sai. */
+const FB_CORRECT_SEL = '.h5p-correct, .multichoice-tip.h5p-correct, .h5p-question-plus-one, .h5p-true-false-answer.correct';
+const FB_WRONG_SEL = '.h5p-wrong, .multichoice-tip.h5p-wrong, .h5p-question-minus-one, .h5p-true-false-answer.incorrect, .h5p-sc-is-wrong';
+
+/**
+ * Quyết định kết quả 1 mốc từ số liệu feedback (thuần logic -> test được offline).
+ *   bad > 0                  -> 'wrong'      (có câu SAI: KHÔNG tính là đã giải)
+ *   ok > 0 | handled > 0     -> 'solved'     (đã trả lời & không có câu sai)
+ *   còn lại                  -> 'unverified' (dialog mở nhưng KHÔNG thao tác được
+ *                                            câu nào -> chưa xác minh, không tính)
+ * Trước đây rơi vào nhánh else -> solvedCount++ nên mốc bỏ trắng vẫn được tính xong.
+ */
+function verdictOf(fb) {
+  const bad = (fb && fb.bad) || 0;
+  const ok = (fb && fb.ok) || 0;
+  const handled = (fb && fb.handled) || 0;
+  if (bad > 0) return 'wrong';
+  if (ok > 0 || handled > 0) return 'solved';
+  return 'unverified';
+}
+
 /** Đọc danh sách interactions từ H5PIntegration trong frame (hoặc từ jsonContent truyền vào). */
 async function readInteractions(frame, jsonOverride) {
   let jc = jsonOverride;
@@ -376,6 +402,8 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   logger(`IV: ${list.length} interactions [${list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' ')}]`);
 
   let solvedCount = 0;
+  let wrongCount = 0;      // số mốc có câu SAI -> bài KHÔNG được coi là hoàn thành
+  let unverifiedCount = 0; // số mốc mở dialog nhưng KHÔNG thao tác được câu nào
   // Gom interaction theo mốc thời gian (from). Tại 1 mốc, H5P hiện TẤT CẢ
   // interaction cùng from trong CÙNG 1 dialog (summary + nhiều MC cùng lúc).
   // LOẠI summary khỏi stops: nó là nút "Mở tóm tắt" ở CUỐI video, xử lý riêng.
@@ -685,12 +713,18 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
           };
         }).catch(() => ({}));
 
+        // `handled`: có THAO TÁC trả lời thật không (click/điền/kéo). Dùng để phân
+        // biệt "đã trả lời & không sai" với "dialog mở nhưng bỏ trắng" — nếu bỏ
+        // trắng thì KHÔNG được tính là đã giải (chính sách trung thực).
+        let handled = false;
+
         // (1) SUMMARY — nằm ở cấp dialog (.h5p-summary), KHÔNG nằm trong .h5p-question con.
         if (inv.sumRows) {
           const ex = group.find(g => g.kind === 'summary');
           if (ex && ex.extracted) {
             logger(`  summary: ${inv.sumRows} rows`);
-            await answerSummaryInPopup(frame, frame.locator('.h5p-summary').first(), ex.extracted, logger);
+            const rs = await answerSummaryInPopup(frame, frame.locator('.h5p-summary').first(), ex.extracted, logger);
+            if (rs && rs.solved) handled = true;
             await sleep(200);
           }
         }
@@ -699,7 +733,8 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         // (2a) SingleChoiceSet: dạng .h5p-single-choice-set, click là chấm điểm ngay.
         if (inv.sc) {
           const scEx = (group.find(g => g.kind === 'choice') || {}).extracted;
-          await answerSingleChoiceSet(frame, scEx, logger);
+          const rsc = await answerSingleChoiceSet(frame, scEx, logger);
+          if (rsc && rsc.solved) handled = true;
           await sleep(300);
         }
         // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
@@ -715,7 +750,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
             const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger, choices[mcIndex].library);
             mcIndex++;
             // Bấm Kiểm tra NGAY trong container này (nút enabled sau khi có lựa chọn).
-            if (r.solved) await pressCheckIn(frame, qc, logger);
+            if (r.solved) { handled = true; await pressCheckIn(frame, qc, logger); }
           }
         }
         await sleep(200);
@@ -726,7 +761,11 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         if (blanksEls.length && !inv.mtw && inv.blanksBox) {
           const b = blanksEls[0];
           const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
-          if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
+          if (rb && rb.solved) handled = true;
+          else {
+            const rd = await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => null);
+            if (rd && rd.solved) handled = true;
+          }
         }
 
         // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
@@ -736,7 +775,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         if (inv.mtw) {
           const mtwEx = (group.find(g => g.kind === 'blanks') || {}).extracted;
           const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
-          if (rMtw.solved) await pressCheckIn(frame, frame.locator('.h5p-mark-the-words:visible').first(), logger);
+          if (rMtw.solved) { handled = true; await pressCheckIn(frame, frame.locator('.h5p-mark-the-words:visible').first(), logger); }
         }
         await sleep(200);
 
@@ -749,19 +788,21 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         await waitFeedback(frame, 1200);
 
         // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
-        const fb = await frame.evaluate(() => {
+        // Đếm TOÀN CỤC theo bộ selector đầy đủ (FB_*_SEL) để bao cả feedback nằm
+        // NGOÀI .h5p-question (vd SingleChoiceSet .h5p-sc-is-wrong, TrueFalse
+        // .h5p-true-false-answer.*) — trước đây chỉ đếm trong .h5p-question nên
+        // bỏ sót câu sai của các loại này.
+        const fb = await frame.evaluate((sel) => {
           const qs = [...document.querySelectorAll('.h5p-question')];
-          let ok = 0, bad = 0, det = [];
-          for (const q of qs) {
-            const good = q.querySelectorAll('.h5p-correct, .multichoice-tip.h5p-correct, .h5p-question-plus-one').length;
-            const wrong = q.querySelectorAll('.h5p-wrong, .multichoice-tip.h5p-wrong').length;
-            ok += good; bad += wrong;
-            det.push(`g${good}/w${wrong}`);
-          }
+          const det = qs.map((q) => `g${q.querySelectorAll(sel.correct).length}/w${q.querySelectorAll(sel.wrong).length}`);
+          const ok = document.querySelectorAll(sel.correct).length;
+          const bad = document.querySelectorAll(sel.wrong).length;
           const bar = document.querySelector('.h5p-joubelui-score-bar-progress, .h5p-score-bar-progress');
           return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
-        }).catch(() => ({}));
-        logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} bar=${fb.bar} [${fb.det}]`);
+        }, { correct: FB_CORRECT_SEL, wrong: FB_WRONG_SEL }).catch(() => ({}));
+        // `handled` (1/0) gắn từ ngoài: đã thao tác trả lời thật hay chưa.
+        fb.handled = handled ? 1 : 0;
+        logger(`  feedback @${stop}s: ok=${fb.ok} bad=${fb.bad} handled=${fb.handled} bar=${fb.bar} [${fb.det}]`);
         return fb;
       };
 
@@ -776,10 +817,19 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         if (fb2.bad >= fb.bad) { fb = fb2; logger('  retry: số câu sai không giảm -> dừng'); break; }
         fb = fb2;
       }
-      // CHỈ tính "đã giải" khi KHÔNG có câu nào sai. Trước đây tăng vô điều kiện
-      // nên 1 câu (dù sai/bỏ trống) là cả bài được tính xong.
-      if (fb.bad > 0) logger(`  ⚠️ mốc ${stop}s có ${fb.bad} câu SAI — không tính là đã giải`);
-      else solvedCount++;
+      // CHỈ tính "đã giải" khi KHÔNG có câu SAI và CÓ thao tác trả lời thật.
+      // Trước đây tăng vô điều kiện khi fb.bad===0 nên mốc bỏ trắng (dialog mở mà
+      // không trả lời được câu nào) vẫn được tính là xong -> bài báo hoàn thành sai.
+      const verdict = verdictOf(fb);
+      if (verdict === 'wrong') {
+        wrongCount++;
+        logger(`  ⚠️ mốc ${stop}s có ${fb.bad} câu SAI — không tính là đã giải`);
+      } else if (verdict === 'unverified') {
+        unverifiedCount++;
+        logger(`  ⚠️ mốc ${stop}s KHÔNG trả lời được câu nào (chưa xác minh) — không tính là đã giải`);
+      } else {
+        solvedCount++;
+      }
 
       // Bấm "Tiếp tục/Continue" để H5P submit câu trả lời (xAPI 'answered' chỉ
       // fire sau khi đóng dialog qua nút này, KHÔNG fire khi seek đi đột ngột).
@@ -788,7 +838,9 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
     }
   }
   await finishVideo(frame);
-  return { solved: solvedCount, total: stops.length + (hasSummary ? 1 : 0) };
+  // wrong/unverified > 0 => bài có mốc chưa chắc đúng -> flow.js KHÔNG coi là ok
+  // (chính sách trung thực: thà báo "chưa xác nhận" còn hơn báo xong sai).
+  return { solved: solvedCount, total: stops.length + (hasSummary ? 1 : 0), wrong: wrongCount, unverified: unverifiedCount };
 }
 
 /** Bấm "Tiếp tục/Continue" sau khi xem feedback trong popup IV để submit câu trả lời. */
@@ -814,4 +866,4 @@ async function pressContinue(frame, logger) {
   return false;
 }
 
-module.exports = { solveVideo, readInteractions, extractList, answerChoiceInPopup, answerSummaryInPopup, answerMarkTheWords, pressContinue, seekVideo, finishVideo, kindOf, log };
+module.exports = { solveVideo, readInteractions, extractList, answerChoiceInPopup, answerSummaryInPopup, answerMarkTheWords, pressContinue, seekVideo, finishVideo, kindOf, log, verdictOf, FB_CORRECT_SEL, FB_WRONG_SEL };

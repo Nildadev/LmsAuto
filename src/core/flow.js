@@ -217,7 +217,12 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
       result = { solved: 0, slides: 0, kind };
     }
   }
-  const ok = !!(result && (result.solved > 0 || barReached(result.finalScore) || result.noQuestions));
+  // Mốc có câu SAI (result.wrong) hoặc KHÔNG xác minh được (result.unverified) ->
+  // bài KHÔNG được coi là hoàn thành, dù đã giải được phần lớn. Chính sách trung
+  // thực: thà báo "chưa xác nhận" còn hơn báo xong sai rồi đánh dấu status=3.
+  const badStops = result ? ((result.wrong || 0) + (result.unverified || 0)) : 0;
+  const ok = !!(result && badStops === 0
+    && (result.solved > 0 || barReached(result.finalScore) || result.noQuestions));
   // Bài khoá tua (preventSkipping) bị solver bỏ qua: KHÔNG tính là lỗi, KHÔNG
   // đánh dấu hoàn thành. runFlow sẽ đếm vào report.skipped.
   const skipped = !!(result && result.skippedLocked);

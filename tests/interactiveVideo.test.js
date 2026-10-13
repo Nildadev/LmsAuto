@@ -9,7 +9,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { readInteractions } = require('../src/h5p/interactiveVideo');
+const { readInteractions, verdictOf } = require('../src/h5p/interactiveVideo');
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -124,6 +124,30 @@ function standalone(mode, extraIv) {
     assert.strictEqual(r.seekLocked, false);
     assert.strictEqual(r.preventSkippingMode, 'none');
     assert.ok(r.items.length >= 1, 'phải đọc được interaction/summary thật');
+  });
+
+  console.log('\ninteractiveVideo.verdictOf — không tính "đã giải" khi còn SAI / bỏ trắng');
+
+  await check('có câu SAI (bad>0) -> "wrong" (dù cũng có ok)', async () => {
+    assert.strictEqual(verdictOf({ ok: 2, bad: 1, handled: 1 }), 'wrong');
+  });
+
+  await check('trả lời & không sai (ok>0) -> "solved"', async () => {
+    assert.strictEqual(verdictOf({ ok: 3, bad: 0, handled: 1 }), 'solved');
+  });
+
+  await check('không có feedback nhưng CÓ thao tác (handled) -> "solved"', async () => {
+    assert.strictEqual(verdictOf({ ok: 0, bad: 0, handled: 1 }), 'solved');
+  });
+
+  await check('dialog mở nhưng bỏ trắng (ok=bad=handled=0) -> "unverified"', async () => {
+    assert.strictEqual(verdictOf({ ok: 0, bad: 0, handled: 0 }), 'unverified');
+  });
+
+  await check('thiếu hẳn field feedback -> "unverified" (không crash)', async () => {
+    assert.strictEqual(verdictOf({}), 'unverified');
+    assert.strictEqual(verdictOf(null), 'unverified');
+    assert.strictEqual(verdictOf(undefined), 'unverified');
   });
 
   console.log(`\nKết quả: ${passed} passed, ${failed} failed`);

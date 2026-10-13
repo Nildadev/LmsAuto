@@ -262,6 +262,24 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.items[0].skipped, true);
   });
 
+  await checkAsync('runFlow R2: bài có mốc SAI -> KHÔNG ok, không markComplete (dù solved>0)', async () => {
+    const { d, calls } = fakeDeps({ kind: 'iv', todo: [{ title: 'IV có câu sai', contentId: 'c1', p: 'PWRONG', cs: 'CS1' }] });
+    // Giải được 1/2 mốc nhưng còn 1 mốc SAI -> không được coi là hoàn thành.
+    d.solveVideo = async () => { calls.solveVideo++; return { solved: 1, total: 2, wrong: 1, unverified: 0 }; };
+    const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
+    assert.strictEqual(rep.solved, 0, 'còn mốc sai -> KHÔNG tính solved');
+    assert.strictEqual(rep.failed, 1, 'tính là chưa xác nhận hoàn thành');
+    assert.strictEqual(calls.markComplete, 0, 'KHÔNG đánh dấu hoàn thành khi còn câu sai');
+  });
+
+  await checkAsync('runFlow R2: bài có mốc KHÔNG xác minh -> KHÔNG ok', async () => {
+    const { d } = fakeDeps({ kind: 'iv', todo: [{ title: 'IV bỏ trắng', contentId: 'c1', p: 'PUNV', cs: 'CS1' }] });
+    d.solveVideo = async () => ({ solved: 0, total: 1, wrong: 0, unverified: 1 });
+    const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
+    assert.strictEqual(rep.solved, 0);
+    assert.strictEqual(rep.failed, 1);
+  });
+
   // ── M7: vòng quét lại cuối phiên ──
   await checkAsync('runFlow M7: bài fail vòng 1 xong vòng 2 -> solved, không failed', async () => {
     const pending = new Set(['P1']);
