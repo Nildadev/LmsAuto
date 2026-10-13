@@ -459,6 +459,7 @@ async function runFlow(opts = {}) {
         itemsByKey.set(key, entry);
         if (res.skipped) {
           // Bài khoá tua -> bỏ qua, KHÔNG tính lỗi, KHÔNG đánh dấu hoàn thành.
+          entry.ok = false;
           skippedKeys.add(key); solvedKeys.delete(key); failedKeys.delete(key);
           if (it.p) skippedLockedIds.add(it.p);
           logger('  ⏭️ Bỏ qua (khoá tua) — không tính lỗi');
@@ -480,10 +481,18 @@ async function runFlow(opts = {}) {
               else { marked = false; logger(`  ⚠️ Đánh dấu hoàn thành thất bại${m ? ` (HTTP ${m.status})` : ''}`); }
             }
           }
-          if (marked) { solvedKeys.add(key); failedKeys.delete(key); logger(`  ✅ Xong (${res.kind})`); }
-          else { failedKeys.add(key); solvedKeys.delete(key); logger('  ⚠️ Chưa xác nhận hoàn thành (đánh dấu server thất bại)'); }
+          if (marked) {
+            entry.ok = true;
+            solvedKeys.add(key); failedKeys.delete(key); skippedKeys.delete(key);
+            logger(`  ✅ Xong (${res.kind})`);
+          }
+          else {
+            entry.ok = false;
+            failedKeys.add(key); solvedKeys.delete(key); skippedKeys.delete(key);
+            logger('  ⚠️ Chưa xác nhận hoàn thành (đánh dấu server thất bại)');
+          }
         }
-        else { failedKeys.add(key); solvedKeys.delete(key); logger('  ⚠️ Chưa xác nhận hoàn thành'); }
+        else { entry.ok = false; failedKeys.add(key); solvedKeys.delete(key); skippedKeys.delete(key); logger('  ⚠️ Chưa xác nhận hoàn thành'); }
         if (typeof opts.onProgress === 'function') {
           progressDone++;
           // Index không reset về 0 mỗi vòng; total luôn >= index -> i < total.
