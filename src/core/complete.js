@@ -54,9 +54,18 @@ async function listAllClassCourses(token, opts = {}) {
   const apiBase = opts.apiBase || API_BASE;
   const perPage = opts.perPage || 100;
   const maxPages = opts.maxPages || 30;
+  const logger = opts.logger || (() => {});
   const courses = [];
   for (let pg = 1; pg <= maxPages; pg++) {
-    const body = await getJson(fetchImpl, `${apiBase}/h5p/courses/class?page_id=${pg}&per_page=${perPage}`, token, opts.timeoutMs);
+    let body;
+    try {
+      body = await getJson(fetchImpl, `${apiBase}/h5p/courses/class?page_id=${pg}&per_page=${perPage}`, token, opts.timeoutMs);
+    } catch (e) {
+      // 1 trang lỗi KHÔNG được làm sập cả quét: trước đây throw -> scanIncomplete
+      // văng -> runFlow báo "không quét được khóa" -> MẤT TOÀN BỘ danh sách.
+      logger(`  ⚠️ courses/class trang ${pg} lỗi: ${String(e && e.message).slice(0, 80)} — giữ ${courses.length} khóa đã lấy được`);
+      break;
+    }
     const arr = (body && body.data && body.data.h5p_courses) || [];
     courses.push(...arr);
     if (arr.length < perPage) break;
@@ -64,7 +73,11 @@ async function listAllClassCourses(token, opts = {}) {
   return courses;
 }
 
-/** learn_status của 1 khóa -> mảng h5p_content_views (rỗng nếu lỗi/không có). */
+/**
+ * learn_status của 1 khóa -> mảng h5p_content_views, hoặc `null` nếu LỖI.
+ * PHÂN BIỆT rõ: `[]` = khóa thật sự rỗng; `null` = đọc lỗi. Caller KHÔNG được coi
+ * null là "không có bài" — nếu không sẽ âm thầm bỏ sót toàn bộ bài của khóa đó.
+ */
 async function fetchLearnStatus(token, courseId, opts = {}) {
   const fetchImpl = opts.fetchImpl || globalThis.fetch;
   const apiBase = opts.apiBase || API_BASE;
@@ -72,10 +85,8 @@ async function fetchLearnStatus(token, courseId, opts = {}) {
     const body = await getJson(fetchImpl, `${apiBase}/h5p/contents/learn_status?page_id=1&per_page=-1&h5p_course_id=${courseId}`, token, opts.timeoutMs);
     return (body && body.data && body.data.h5p_content_views) || [];
   } catch (e) {
-    // Lỗi tạm thời 1 khóa không được phép nuốt im lặng (trước đây -> coi như khóa
-    // rỗng, bỏ sót toàn bộ bài của khóa đó).
     opts.logger && opts.logger(`  ⚠️ learn_status lỗi (khóa ${courseId}): ${String(e && e.message).slice(0, 80)}`);
-    return [];
+    return null; // null = LỖI (khác [] = rỗng)
   }
 }
 
@@ -127,7 +138,12 @@ async function scanIncomplete(token, opts = {}) {
   // mỗi lần quét (và bị quét 2 lần: đầu phiên + vòng quét lại). mapLimit giữ NGUYÊN
   // thứ tự kết quả -> danh sách parts/báo cáo vẫn ổn định như trước.
   const perCourse = await mapLimit(courses, opts.courseConcurrency || 5, async (c) => {
+   // Bọc try/catch TỪNG khóa: 1 khóa lỗi (learn_status/listCourseDocs) không được
+   // làm sập Promise.all -> mất TOÀN BỘ kết quả quét. Khóa lỗi -> out rỗng + error.
+   try {
     const views = await fetchLearnStatus(token, c.id, opts);
+    // null = LỖI đọc learn_status -> KHÔNG coi là khóa rỗng (bỏ sót hết bài của khóa).
+    if (!views) return { done: 0, out: [], error: true };
     const done = views.filter((v) => v.status === 3).length;
     const seen = new Set();
     const pending = views.filter((v) => v.status !== 3);
@@ -165,11 +181,17 @@ async function scanIncomplete(token, opts = {}) {
       }
     }
     return { done, out };
+   } catch (e) {
+    logger(`  ⚠️ khóa "${c.title || c.id}" lỗi khi quét: ${String(e && e.message).slice(0, 80)}`);
+    return { done: 0, out: [], error: true };
+   }
   });
   const parts = perCourse.flatMap((r) => r.out);
   const doneParts = perCourse.reduce((a, r) => a + r.done, 0);
-  logger(`📚 Khóa: ${courses.length} | chưa xong: ${parts.length} phần | đã xong sẵn: ${doneParts}`);
-  return { courses: courses.length, parts, doneParts };
+  const failedCourses = perCourse.filter((r) => r.error).length;
+  logger(`📚 Khóa: ${courses.length} | chưa xong: ${parts.length} phần | đã xong sẵn: ${doneParts}`
+    + (failedCourses ? ` | ⚠️ ${failedCourses} khóa đọc lỗi (tạm bỏ qua)` : ''));
+  return { courses: courses.length, parts, doneParts, failedCourses };
 }
 
 /**

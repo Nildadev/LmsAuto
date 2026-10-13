@@ -74,13 +74,38 @@ function makeFetch(scene) {
     assert.strictEqual(calls.filter((c) => /courses\/class/.test(c.url)).length, 2, 'đủ 2 trang');
   });
 
-  await check('fetchLearnStatus: parse views, lỗi -> []', async () => {
+  await check('fetchLearnStatus: parse views; lỗi -> null (khác rỗng)', async () => {
     const scene = { views: { CS1: [{ h5p_content_id: 'p1', status: 3 }] } };
     const { fetchImpl } = makeFetch(scene);
     const v = await fetchLearnStatus('T', 'CS1', { fetchImpl });
     assert.strictEqual(v.length, 1);
     const bad = { fetchImpl: async () => ({ ok: false, status: 500, text: async () => 'err' }) };
-    assert.deepStrictEqual(await fetchLearnStatus('T', 'CS1', { fetchImpl: bad }), []);
+    assert.strictEqual(await fetchLearnStatus('T', 'CS1', { fetchImpl: bad }), null, 'lỗi -> null, KHÔNG phải []');
+  });
+
+  await check('listAllClassCourses: 1 trang lỗi -> giữ khóa đã lấy, không throw', async () => {
+    const scene = { courses: [[{ id: 'c1', title: 'A' }, { id: 'c2', title: 'B' }]] };
+    const base = makeFetch(scene).fetchImpl;
+    const flaky = async (url, opts = {}) => {
+      const pg = Number((String(url).match(/page_id=(\d+)/) || [])[1] || 1);
+      if (pg === 2) return { ok: false, status: 500, text: async () => 'boom' };
+      return base(url, opts);
+    };
+    const list = await listAllClassCourses('T', { fetchImpl: flaky, perPage: 2 });
+    assert.strictEqual(list.length, 2, 'trang 1 lấy được vẫn giữ; trang 2 lỗi -> dừng an toàn');
+  });
+
+  await check('scanIncomplete: 1 khóa learn_status lỗi -> khóa khác VẪN được quét', async () => {
+    const scene = { courses: [[{ id: 'CSBAD', title: 'K lỗi' }, { id: 'CSOK', title: 'K ok' }]], views: { CSOK: [{ h5p_content_id: 'pOK', status: 0 }] }, details: { pOK: { type: 0, title: 'Bài ok' } } };
+    const base = makeFetch(scene).fetchImpl;
+    const flaky = async (url, opts = {}) => {
+      if (/learn_status/.test(String(url)) && /CSBAD/.test(String(url))) return { ok: false, status: 500, text: async () => 'boom' };
+      return base(url, opts);
+    };
+    const r = await scanIncomplete('T', { fetchImpl: flaky, logger: () => {} });
+    assert.strictEqual(r.parts.length, 1, 'khóa lỗi bị bỏ qua, khóa ok vẫn có parts');
+    assert.strictEqual(r.parts[0].p, 'pOK');
+    assert.strictEqual(r.failedCourses, 1, 'đếm số khóa đọc lỗi');
   });
 
   await check('scanIncomplete: bỏ status=3, phân loại file vs H5P', async () => {
