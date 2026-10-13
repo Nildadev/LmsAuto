@@ -19,13 +19,24 @@ async function readInteractions(frame, jsonOverride) {
     if (typeof j === 'string') { try { j = JSON.parse(j); } catch (_) {} }
     return j;
   });
+  // H5P InteractiveVideo có 2 cách lồng nhau:
+  //  - Đứng riêng: jsonContent = { interactiveVideo:{...}, override:{...}, l10n:{...} }
+  //  - Lồng trong IB/CP: caller truyền { params: <IV params> } -> override nằm ở
+  //    jc.params.override (NGANG HÀNG với jc.params.interactiveVideo).
   let iv = jc.interactiveVideo;
-  // Khi jsonContent được truyền trực tiếp là params của IV (lồng trong IB/CP):
-  if (!iv && jc.params && jc.params.interactiveVideo) iv = jc.params.interactiveVideo;
+  let root = jc;
+  if (!iv && jc.params && jc.params.interactiveVideo) { iv = jc.params.interactiveVideo; root = jc.params; }
   iv = iv || {};
   const assets = iv.assets || {};
-  const sm = (iv.override && iv.override.preventSkippingMode) || 'none';
-  const locked = String(sm).toLowerCase() === 'forward' || String(sm).toLowerCase() === 'both';
+  // QUAN TRỌNG: preventSkippingMode nằm ở `override` NGANG HÀNG với `interactiveVideo`
+  // (KHÔNG lồng trong nó). Trước đây đọc iv.override -> luôn undefined -> seekLocked
+  // luôn false -> bài khoá tua bị xử như bài cho tua (seek không ăn -> kẹt/mất câu).
+  // Hỗ trợ cả 2 vị trí để chắc chắn nhận diện đúng bài khoá tua vs bài cho tua.
+  const ov = (iv.override && iv.override.preventSkippingMode != null)
+    ? iv.override
+    : (root.override || iv.override || {});
+  const sm = String(ov.preventSkippingMode || 'none').toLowerCase();
+  const locked = sm === 'forward' || sm === 'both';
   const out = ((assets.interactions) || []).map((a, i) => ({
     i,
     from: (a.duration && a.duration.from) || 0,
@@ -47,7 +58,7 @@ async function readInteractions(frame, jsonOverride) {
       params: sum.params,
     });
   }
-  return { items: out, seekLocked: locked, summaryDisplayAt: Number(iv.summary && iv.summary.displayAt) || 0 };
+  return { items: out, seekLocked: locked, preventSkippingMode: sm, summaryDisplayAt: Number(iv.summary && iv.summary.displayAt) || 0 };
 }
 
 function kindOf(library) {
@@ -325,15 +336,24 @@ async function answerSummaryInPopup(frame, qc, extracted, logger) {
 async function solveVideo(page, frame, logger = log, jsonOverride) {
   const ri = await readInteractions(frame, jsonOverride);
   const interactions = ri.items || ri;
+  const mode = (ri && ri.preventSkippingMode) || 'none';
   const seekLocked = !!(ri && ri.seekLocked);
-  // BÀI KHÓA TUA (preventSkipping): không thể tua tới mốc -> chỉ còn cách play xuyên
-  // suốt theo THỜI GIAN THỰC (rất chậm, dễ treo phiên hàng chục phút/bài). Theo yêu
-  // cầu: BỎ QUA bài này (không tính lỗi, không markComplete) để phiên không bị kẹt.
+
+  // Video KHÔNG có câu hỏi (chỉ cần xem): không cần tua/play -> chỉ đánh dấu hoàn
+  // thành. Kiểm tra TRƯỚC cờ khoá tua để video-khoá-tua-không-câu-hỏi vẫn được tính
+  // hoàn thành (thay vì bị bỏ qua oan).
+  if (!interactions.length) {
+    logger(`IV: không có interactions (video chỉ cần xem)${seekLocked ? ` — khoá tua (${mode}) nhưng không cần tua` : ''}`);
+    return { solved: 0, total: 0, noQuestions: true };
+  }
+  // BÀI KHÓA TUA (preventSkipping = forward|both): có câu hỏi nhưng KHÔNG thể tua tới
+  // mốc -> chỉ còn cách play xuyên suốt theo THỜI GIAN THỰC (rất chậm, dễ treo phiên
+  // hàng chục phút/bài). Theo yêu cầu: BỎ QUA (không tính lỗi, không markComplete).
   if (seekLocked) {
-    logger('  ⏭️ Bỏ qua bài khoá tua (không thể seek)');
+    logger(`  ⏭️ Bỏ qua bài khoá tua (preventSkipping=${mode}) — không thể seek tới mốc câu hỏi`);
     return { solved: 0, total: 0, skippedLocked: true };
   }
-  if (!interactions.length) { logger('IV: không có interactions (video chỉ cần xem)'); return { solved: 0, total: 0, noQuestions: true }; }
+  logger(`  🔓 Bài cho tua (preventSkipping=${mode}) — giải bằng seek`);
   const list = await extractList(interactions);
   logger(`IV: ${list.length} interactions [${list.map(l => `${l.i}@${l.from}s:${l.kind}`).join(' ')}]`);
 
