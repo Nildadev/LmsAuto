@@ -34,6 +34,10 @@ const arg = (name) => {
 function numArg(name) {
   const raw = arg(name);
   if (raw === undefined) return undefined;
+  if (raw === true) {
+    console.error(`❌ Thiếu giá trị cho --${name} (dùng --${name}=N).`);
+    process.exit(2);
+  }
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 1) {
     console.error(`❌ Giá trị --${name}=${raw === true ? '(thiếu)' : raw} không hợp lệ (cần số nguyên >= 1).`);
@@ -63,10 +67,16 @@ async function main() {
   if (retryRounds !== undefined) console.log(`   🔁 Số vòng giải: ${retryRounds}${retryRounds === 1 ? ' (không quét lại)' : ' (quét lại learn_status cuối mỗi vòng)'}`);
   console.log('=================================================\n');
 
-  const response = await prompt([
-    { type: 'input', name: 'username', message: '👤 Tài khoản:' },
-    { type: 'password', name: 'password', message: '🔑 Mật khẩu:' },
-  ]);
+  let response;
+  try {
+    response = await prompt([
+      { type: 'input', name: 'username', message: '👤 Tài khoản:' },
+      { type: 'password', name: 'password', message: '🔑 Mật khẩu:' },
+    ]);
+  } catch (err) {
+    console.error(`\n⏹️ Đã hủy nhập thông tin đăng nhập${err && err.message ? `: ${err.message}` : '.'}`);
+    process.exit(130);
+  }
 
   if (!response.username || !response.password) {
     console.log('❌ Vui lòng nhập đầy đủ tài khoản và mật khẩu.');

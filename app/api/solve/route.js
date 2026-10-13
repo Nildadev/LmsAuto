@@ -44,7 +44,16 @@ function release() {
 }
 
 export async function POST(request) {
-  const { username, password, headlessMode, blacklistSubjects, scanClass, doAssigned } = await request.json();
+  let payload;
+  try {
+    payload = await request.json();
+  } catch (_) {
+    return new Response(JSON.stringify({ error: 'Body JSON không hợp lệ.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+  }
+  const { username, password, headlessMode, blacklistSubjects, scanClass, doAssigned } = payload || {};
   const signal = request.signal;
 
   const encoder = new TextEncoder();
@@ -69,7 +78,8 @@ export async function POST(request) {
         //   blacklistSubjects (mảng) -> RegExp tuỳ chỉnh; rỗng -> undefined (dùng mặc định)
         const subjects = Array.isArray(blacklistSubjects) ? blacklistSubjects : [];
         const blacklist = subjects.length
-          ? new RegExp(subjects.map((s) => String(s).trim()).filter(Boolean).join('|'), 'i')
+          ? new RegExp(subjects.map((s) => String(s).trim()).filter(Boolean)
+            .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'i')
           : undefined;
 
         // Xin slot chạy (nhiều người dùng -> mỗi người 1 browser riêng).
@@ -112,9 +122,8 @@ export async function POST(request) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
     },
   });
 }

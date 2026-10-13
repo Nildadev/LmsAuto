@@ -11,10 +11,11 @@ function getTimeStamp() {
 
 // Màu log theo Material
 function getLogStyle(msg) {
-  if (msg.startsWith('❌')) return 'text-error';
-  if (msg.startsWith('⚠️')) return 'text-warning';
-  if (msg.startsWith('✅') || msg.startsWith('🏁')) return 'text-success';
-  if (msg.startsWith('🚀') || msg.startsWith('📊')) return 'text-primary';
+  const text = String(msg || '').trim();
+  if (text.startsWith('❌')) return 'text-error';
+  if (text.startsWith('⚠️')) return 'text-warning';
+  if (text.startsWith('✅') || text.startsWith('🏁')) return 'text-success';
+  if (text.startsWith('🚀') || text.startsWith('📊')) return 'text-primary';
   return 'text-on-surface';
 }
 
@@ -139,7 +140,7 @@ export default function Home() {
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
         if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
         if (typeof s.doAssigned     === 'boolean') setDoAssigned(s.doAssigned);
-        if (s.blacklistSubjects)                   setBlacklistSubjects(s.blacklistSubjects);
+        if (typeof s.blacklistSubjects === 'string')    setBlacklistSubjects(s.blacklistSubjects);
       } catch { /* ignore */ }
     }
     loadedRef.current = true;
@@ -258,11 +259,16 @@ export default function Home() {
         return;
       }
       const reader = response.body.getReader();
+      const decoder = new TextDecoder();
       let partial = '';
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = new TextDecoder().decode(value);
+        if (done) {
+          const tail = decoder.decode();
+          if (tail) partial += tail;
+          break;
+        }
+        const chunk = decoder.decode(value, { stream: true });
         const lines = (partial + chunk).split('\n');
         partial = lines.pop();
         for (const line of lines) {
