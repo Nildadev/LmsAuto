@@ -109,5 +109,70 @@ check('extractAnswers route TrueFalse qua extractTrueFalse', () => {
   assert.deepStrictEqual(r.correctTexts, ['Đúng']);
 });
 
-console.log(`\nKết quả: ${passed} pass, ${failed} fail`);
-process.exit(failed ? 1 : 0);
+// ── solveSingleChoiceSet: KHÔNG click bừa khi không khớp được đáp án ──
+const { solveSingleChoiceSet } = require('../src/h5p/book/question');
+
+async function checkAsync(name, fn) {
+  try { await fn(); passed++; console.log('  ✓', name); }
+  catch (e) { failed++; console.log('  ✗', name, '\n     ', e.message); }
+}
+
+/** Container SC giả tối thiểu cho solveSingleChoiceSet. */
+function fakeScContainer(altsDef, qText = 'Câu hỏi 1') {
+  const alts = altsDef.map((def) => {
+    const fake = {
+      scrollIntoViewIfNeeded: async () => {},
+      boundingBox: async () => null,
+      click: async () => { fake.clicks = (fake.clicks || 0) + 1; },
+      innerText: async () => def.text,
+      evaluate: async (fn) => fn({ className: def.correct ? 'h5p-sc-alternative h5p-sc-is-correct' : 'h5p-sc-alternative' }),
+    };
+    return fake;
+  });
+  const altLoc = { count: async () => alts.length, nth: (i) => alts[i] };
+  const cur = {
+    count: async () => 1,
+    locator: (sel) => {
+      if (sel === '.h5p-sc-alternative') return altLoc;
+      if (sel === '.h5p-sc-question') return { first: () => ({ innerText: async () => qText }) };
+      return { count: async () => 0 };
+    },
+  };
+  const container = {
+    locator: (sel) => {
+      if (/h5p-sc-set-results|h5p-sc-finished/.test(sel)) return { count: async () => 0 };
+      if (sel === '.h5p-sc-current-slide') return cur;
+      return { count: async () => 0 }; // '.h5p-sc-current-slide .h5p-sc-alternative' -> 0 -> dừng
+    },
+  };
+  return { container, alts };
+}
+
+(async () => {
+  console.log('\nsolveSingleChoiceSet — không click bừa khi thiếu đáp án');
+
+  await checkAsync('không có .h5p-sc-is-correct & không khớp text -> KHÔNG click (clicks=0)', async () => {
+    const { container, alts } = fakeScContainer([
+      { text: 'sai A', correct: false },
+      { text: 'sai B', correct: false },
+    ]);
+    const r = await solveSingleChoiceSet({}, container, { data: { correctTexts: ['đáp án đúng'] } }, null);
+    assert.strictEqual(r.solved, false, 'không được báo solved');
+    assert.strictEqual(r.clicked, 0, 'KHÔNG được click đáp án nào');
+    assert.ok(alts.every((a) => !a.clicks), 'không phần tử nào bị click');
+  });
+
+  await checkAsync('có .h5p-sc-is-correct -> click đúng đáp án đó', async () => {
+    const { container, alts } = fakeScContainer([
+      { text: 'sai', correct: false },
+      { text: 'đúng', correct: true },
+    ]);
+    const r = await solveSingleChoiceSet({}, container, { data: { correctTexts: [] } }, null);
+    assert.strictEqual(r.clicked, 1, 'click đúng 1 lần');
+    assert.ok(alts[1].clicks, 'phần tử đúng (index 1) phải được click');
+    assert.ok(!alts[0].clicks, 'phần tử sai KHÔNG được click');
+  });
+
+  console.log(`\nKết quả: ${passed} pass, ${failed} fail`);
+  process.exit(failed ? 1 : 0);
+})();

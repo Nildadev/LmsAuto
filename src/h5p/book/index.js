@@ -107,12 +107,14 @@ async function solvePage(frame, elements, logger) {
   const popupEls = elements.filter((e) => QUESTION_KINDS.has(e.kind) && e.extracted);
   const hasRealQ = popupEls.length > 0 || elements.some((e) => QUESTION_KINDS.has(e.kind));
   let popupFilled = 0;
+  let popupButtons = 0;
   if (hasRealQ) {
     // Chỉ nút trong CP đang HIỆN (trang IB trước đó ẩn).
     const visCp = frame.locator('.h5p-course-presentation:visible').last();
     const cpBtns = visCp.locator('.h5p-element-button[aria-haspopup="dialog"]');
     const cpBtnN = await cpBtns.count().catch(() => 0);
     if (cpBtnN > 0) {
+      popupButtons = cpBtnN;
       logger && logger(`  CP popup: ${cpBtnN} nút câu hỏi ẩn`);
       let ei = 0;
       for (let b = 0; b < cpBtnN; b++) {
@@ -139,15 +141,18 @@ async function solvePage(frame, elements, logger) {
         else { await frame.page().keyboard.press('Escape').catch(() => {}); }
         await sleep(250);
       }
-      if (popupFilled > 0 || !hasRealQ) return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: cpBtnN }] };
-      // Có cả container thường lẫn popup -> gộp (hiếm). Trả về tổng popup + tiếp tục bên dưới.
+      // LUÔN quét lại container thường sau khi giải popup: 1 trang có thể có CẢ
+      // nút popup LẪN câu hỏi column riêng (vd Lăng kính trang 0). Trước đây
+      // return sớm ngay khi popupFilled>0 -> BỎ SÓT các câu hỏi cùng trang đó.
       containers = await visibleQuestionContainers(frame);
-      if (!containers.length) return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: cpBtnN }] };
+      if (!containers.length) {
+        return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons }] };
+      }
       // fall-through để giải container thường, cộng dồn popupFilled ở cuối.
     }
   }
-  const details = [];
-  let filled = 0, good = 0, wrong = 0;
+  const details = popupFilled > 0 ? [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons }] : [];
+  let filled = popupFilled, good = popupFilled, wrong = 0;
 
   // InteractiveVideo lồng trong trang: delegate sang solveVideo (đã verify riêng).
   const ivEl = elements.find((e) => e.kind === 'iv');
@@ -241,8 +246,15 @@ async function solveCoursePresentation(page, frame, model, logger) {
   let solvedSlides = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
-    await cpGoto(frame, i, logger);
+    const atSlide = await cpGoto(frame, i, logger);
     const pg = model.pages[i];
+    // Không điều hướng được tới slide i -> DOM còn ở slide khác; nếu giải tiếp sẽ
+    // chấm NHẦM sang câu của slide khác. Bỏ qua slide (không tính là đã giải).
+    if (!atSlide) {
+      logger(`  ⚠️ CP: không tới được slide ${i} -> bỏ qua (tránh giải nhầm slide)`);
+      details.push({ i, kind: 'goto-failed' });
+      continue;
+    }
     if (!pg || !pg.elements.length) { details.push({ i, kind: 'none' }); continue; }
     const r = await solvePage(frame, pg.elements, logger);
     if (r.good > 0 && r.wrong === 0) solvedSlides++;
@@ -276,9 +288,18 @@ async function solveInteractiveBook(page, frame, model, logger) {
       details.push({ i, title: pg ? pg.title : 'Summary', kind: 'none' });
       logger(`  trang ${i + 1}/${total}: (không có câu hỏi)`);
     }
-    if (i < total - 1) await ibNext(frame, logger);
+    if (i < total - 1) {
+      const advanced = await ibNext(frame, logger);
+      if (!advanced) {
+        // Không bấm được "Trang tiếp theo" -> các trang sau không hiển thị; nếu
+        // tiếp tục vòng lặp sẽ giải LẶP lại cùng 1 trang. Dừng điều hướng.
+        logger(`  ⚠️ IB: không sang được trang ${i + 2}/${total} -> dừng điều hướng`);
+        break;
+      }
+    }
   }
-  await ibSubmit(frame, logger);
+  const submitted = await ibSubmit(frame, logger);
+  if (!submitted) logger('  ⚠️ IB: không tìm thấy nút "Tóm tắt & gửi" — chưa nộp được');
   const finalScore = await readFinalScore(frame);
   logger(`IB done: ${solvedPages}/${total} trang đúng | final=${JSON.stringify(finalScore)}`);
   return { solved: solvedPages, slides: total, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };

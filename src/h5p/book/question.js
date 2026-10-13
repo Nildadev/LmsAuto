@@ -96,7 +96,9 @@ async function solveSingleChoiceSet(root, container, extracted, logger) {
       target = altTexts.findIndex((t) => texts.includes(t));
       if (target < 0) target = altTexts.findIndex((t) => texts.some((w) => t && (t.includes(w) || w.includes(t))));
     }
-    if (target < 0) target = 0;
+    // Không khớp được đáp án -> DỪNG (KHÔNG click bừa cái đầu: H5P chấm điểm NGAY
+    // khi click nên sẽ ghi nhận câu SAI, làm hỏng cả set và báo hoàn thành oan).
+    if (target < 0) { logger && logger(`  single-choice-set: slide ${slide} không khớp đáp án -> dừng`); break; }
 
     await clickEl(root, alts.nth(target), logger).catch(() => {});
     clicks++;
@@ -173,4 +175,4 @@ async function solveElement(root, container, el, logger) {
   }
 }
 
-module.exports = { solveElement, solveChoice, solveBlanks, solveSummary };
+module.exports = { solveElement, solveChoice, solveBlanks, solveSummary, solveSingleChoiceSet };
