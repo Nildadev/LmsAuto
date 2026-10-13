@@ -33,26 +33,19 @@ async function waitSel(frame, sel, ms = 4000) {
 
 /** Giải MultiChoice/SingleChoiceSet/TrueFalse: click đáp án có correct=true. */
 async function solveChoice(frame, extracted, logger) {
-  // Chỉ dùng .h5p-answer (li role=radio VISIBLE). Tránh .h5p-alternative-container
-  // (bản ẩn duplicate) để không click nhầm node không tác dụng.
-  let answers = frame.locator('.h5p-answer');
-  let count = await answers.count();
-  if (!count) {
-    answers = frame.locator('.h5p-alternative-container, .h5p-true-false-answer');
-    count = await answers.count();
+  // Chọn bộ selector GIỐNG trước: ưu tiên .h5p-answer nếu TỒN TẠI (kể cả đang ẩn),
+  // chỉ khi không có mới dùng fallback. Tránh click nhầm node ẩn duplicate.
+  const hasAnswer = await frame.locator('.h5p-answer').count().catch(() => 0);
+  const baseSel = hasAnswer ? '.h5p-answer' : ':is(.h5p-alternative-container, .h5p-true-false-answer)';
+  if (!hasAnswer && !(await frame.locator(baseSel).count().catch(() => 0))) {
+    return { solved: false, reason: 'no-answer-nodes' };
   }
-  if (!count) return { solved: false, reason: 'no-answer-nodes' };
-
-  // Lọc chỉ node đang VISIBLE + lấy text
-  const visible = [];
-  for (let i = 0; i < count; i++) {
-    const loc = answers.nth(i);
-    const vis = await loc.isVisible().catch(() => false);
-    if (!vis) continue;
-    const t = normalizeText(await loc.innerText().catch(() => ''));
-    visible.push({ i, t });
-  }
-  if (!visible.length) return { solved: false, reason: 'no-visible-answer' };
+  // Lấy text của các đáp án ĐANG HIỆN trong MỘT lượt (allInnerTexts) thay vì
+  // isVisible()+innerText() cho TỪNG đáp án (trước đây 2 round-trip/đáp án).
+  const visLoc = frame.locator(`${baseSel}:visible`);
+  const rawTexts = await visLoc.allInnerTexts().catch(() => []);
+  if (!rawTexts.length) return { solved: false, reason: 'no-visible-answer' };
+  const visible = rawTexts.map((t, i) => ({ i, t: normalizeText(t) }));
 
   const want = (extracted.data && extracted.data.correctTexts || []).map(normalizeText);
 
@@ -80,7 +73,7 @@ async function solveChoice(frame, extracted, logger) {
   const clicked = [];
   for (const i of toClick) {
     if (!clicked.includes(i)) {
-      await humanClick(frame, answers.nth(i));
+      await humanClick(frame, visLoc.nth(i));
       await humanDelay();
       clicked.push(i);
     }
@@ -139,36 +132,31 @@ async function solveDragText(frame, extracted, logger) {
 
   const mouse = frame.page().mouse;
   const center = async (loc) => { const b = await loc.boundingBox().catch(() => null); return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null; };
-  // Text của từ = span đầu tiên (span thứ 2 là a11y "N của M có thể kéo").
-  const wordText = async (w) => {
-    const s = words.nth(w).locator('span').first();
-    const t = await s.innerText().catch(() => '');
-    return t || await words.nth(w).innerText().catch(() => '');
-  };
 
   let placed = 0;
   const usedText = new Set();
   for (let i = 0; i < zN; i++) {
     const want = answers[i];
     if (!want) { logger && logger(`  ô ${i}: không có đáp án (bỏ qua)`); continue; }
-    // Re-query từ mỗi lần: sau mỗi lần thả, H5P re-render bank -> index thay đổi.
-    const wNow = await words.count().catch(() => 0);
+    // Đọc text CẢ bank trong 1 lượt (allInnerTexts) — trước đây gọi innerText()
+    // cho TỪNG từ × TỪNG ô (O(số_ô × số_từ) round-trip). Phải đọc lại mỗi ô vì
+    // sau mỗi lần thả H5P re-render bank -> index thay đổi.
+    const texts = (await words.allInnerTexts().catch(() => [])).map((t) => (t || '').trim());
+    const nWords = texts.length;
+    const nWant = normalizeText(want);
     let target = -1;
-    for (let w = 0; w < wNow; w++) {
-      const t = (await wordText(w)).trim();
-      if (!t) continue;
-      const nt = normalizeText(t);
-      if (usedText.has(nt)) continue;
-      if (nt === normalizeText(want) || nt.includes(normalizeText(want)) || normalizeText(want).includes(nt)) { target = w; break; }
+    for (let w = 0; w < nWords; w++) {
+      const nt = normalizeText(texts[w]);
+      if (!nt || usedText.has(nt)) continue;
+      if (nt === nWant || nt.includes(nWant) || nWant.includes(nt)) { target = w; break; }
     }
     if (target < 0) {
       // Fallback: thử khớp theo thứ tự (bank giữ đúng thứ tự đáp án).
-      for (let w = 0; w < wNow; w++) { const t = normalizeText(await wordText(w)); if (t && !usedText.has(t)) { target = w; break; } }
-      if (target >= 0) logger && logger(`  ô ${i}: fallback theo thứ tự -> "${(await wordText(target)).trim()}" (muốn "${want}")`);
+      for (let w = 0; w < nWords; w++) { const t = normalizeText(texts[w]); if (t && !usedText.has(t)) { target = w; break; } }
+      if (target >= 0) logger && logger(`  ô ${i}: fallback theo thứ tự -> "${texts[target]}" (muốn "${want}")`);
     }
     if (target < 0) { logger && logger(`  ô ${i}: không thấy từ "${want}"`); continue; }
-    const chosenText = normalizeText(await wordText(target));
-    usedText.add(chosenText);
+    usedText.add(normalizeText(texts[target]));
     const from = await center(words.nth(target));
     let to = await center(zones.nth(i));
     if (!from || !to) continue;
@@ -199,13 +187,13 @@ async function solveDrag(frame, extracted, logger) {
   const elText = (extracted.data && extracted.data.elements) || [];
   const zones = (extracted.data && extracted.data.zones) || [];
 
-  // Thu thập box + text của draggable
+  // Thu thập text của draggable trong 1 lượt (trước đây innerText() từng node),
+  // còn box vẫn lấy riêng (boundingBox trả toạ độ trang — cần cho mouse.move).
+  const dragTexts = await drags.allInnerTexts().catch(() => []);
   const dragInfo = [];
   for (let i = 0; i < dragCount; i++) {
     const box = await drags.nth(i).boundingBox();
-    let txt = '';
-    try { txt = (await drags.nth(i).innerText()).trim(); } catch (_) {}
-    if (box) dragInfo.push({ box, txt });
+    if (box) dragInfo.push({ box, txt: (dragTexts[i] || '').trim() });
   }
   // Playwright: Frame không có .mouse, chỉ Page có. Dùng page.mouse (tọa độ boundingBox là page coords).
   const mouse = frame.page().mouse;
@@ -276,15 +264,27 @@ async function solveSummary(frame, extracted, logger) {
   return { solved: clicked > 0, clicked, total: count };
 }
 
+/** Nhãn nút "làm lại" của mọi dạng H5P (dùng chung cho retryAvailable/pressRetry). */
+const RETRY_TEXTS = ['Làm lại', 'Thử lại', 'Làm lại lần nữa', 'Try again', 'Retry'];
+
+/**
+ * Bấm nút ĐẦU TIÊN có nhãn chứa 1 trong `texts` (ưu tiên theo thứ tự texts) trong
+ * số button ĐANG HIỆN của `root`. Chỉ ~2 lượt (allInnerTexts + click) thay vì tối đa
+ * 2×len(texts) lượt locator round-trip. `root` là Frame HOẶC Locator (book).
+ */
+async function pressFirstVisibleText(root, texts, logger, label) {
+  const btns = root.locator('button:visible');
+  const labels = await btns.allInnerTexts().catch(() => []);
+  for (const t of texts) {
+    const idx = labels.findIndex((s) => (s || '').includes(t));
+    if (idx >= 0) { await humanClick(root, btns.nth(idx)); logger && logger(`${label} "${t}"`); return true; }
+  }
+  return false;
+}
+
 /** Bấm nút Check/Kiểm tra/Gửi trả lời trong frame. */
 async function pressCheck(frame, logger) {
-  const texts = ['Kiểm tra', 'Check', 'Gửi trả lời', 'Submit', 'Kiểm tra lại'];
-  for (const t of texts) {
-    const btn = frame.locator(`button:has-text("${t}")`).first();
-    if ((await btn.count().catch(() => 0)) && (await btn.isVisible().catch(() => false))) {
-      await humanClick(frame, btn); logger && logger(`pressed "${t}"`); return true;
-    }
-  }
+  if (await pressFirstVisibleText(frame, ['Kiểm tra', 'Check', 'Gửi trả lời', 'Submit', 'Kiểm tra lại'], logger, 'pressed')) return true;
   const sel = frame.locator('.h5p-question-check-answer:visible').first();
   if ((await sel.count().catch(() => 0))) { await humanClick(frame, sel); return true; }
   return false;
@@ -292,13 +292,7 @@ async function pressCheck(frame, logger) {
 
 /** Bấm "Câu tiếp theo"/"Next". Trả về true nếu bấm được (chứng tỏ câu trước ĐÚNG). */
 async function pressNext(frame, logger) {
-  const texts = ['Câu tiếp theo', 'Tiếp theo', 'Câu hỏi tiếp theo', 'Next'];
-  for (const t of texts) {
-    const btn = frame.locator(`button:has-text("${t}")`).first();
-    if ((await btn.count().catch(() => 0)) && (await btn.isVisible().catch(() => false))) {
-      await humanClick(frame, btn); logger && logger(`next "${t}"`); return true;
-    }
-  }
+  if (await pressFirstVisibleText(frame, ['Câu tiếp theo', 'Tiếp theo', 'Câu hỏi tiếp theo', 'Next'], logger, 'next')) return true;
   const sel = frame.locator('.h5p-question-next:visible, .h5p-question-try-again:visible').first();
   if ((await sel.count().catch(() => 0))) { await humanClick(frame, sel); return true; }
   return false;
@@ -327,38 +321,33 @@ async function waitFeedback(root, ms = 2000) {
  * "Thử lại"). Ta bấm nút đó để reset câu hỏi rồi trả lời lại — thay vì bỏ luôn
  * câu sai và báo bài "chưa hoàn thành". */
 
+const RETRY_SEL = '.h5p-question-try-again:visible, .h5p-question-retry:visible, .h5p-question-try-again-button:visible';
+
 /** Có nút "Làm lại/Thử lại" trong scope không. */
 async function retryAvailable(root) {
-  for (const s of ['.h5p-question-try-again:visible', '.h5p-question-retry:visible', '.h5p-question-try-again-button:visible']) {
-    if (await root.locator(s).count().catch(() => 0)) return true;
-  }
-  for (const t of ['Làm lại', 'Thử lại', 'Làm lại lần nữa', 'Try again', 'Retry']) {
-    if (await root.locator(`button:has-text("${t}"):visible`).first().count().catch(() => 0)) return true;
-  }
-  return false;
+  // Gộp 3 selector vào 1 lượt count (trước đây 3 lượt) rồi 1 lượt đọc nhãn button.
+  if (await root.locator(RETRY_SEL).count().catch(() => 0)) return true;
+  const labels = await root.locator('button:visible').allInnerTexts().catch(() => []);
+  return labels.some((s) => RETRY_TEXTS.some((t) => (s || '').includes(t)));
 }
 
 /** Bấm nút "Làm lại/Thử lại" (reset câu hỏi để trả lời lại). Trả true nếu bấm được. */
 async function pressRetry(root, logger) {
-  const direct = root.locator('.h5p-question-try-again:visible, .h5p-question-retry:visible, .h5p-question-try-again-button:visible').first();
+  const direct = root.locator(RETRY_SEL).first();
   if (await direct.count().catch(() => 0)) { await humanClick(root, direct).catch(() => {}); logger && logger('  retry: bấm "Làm lại"'); return true; }
-  for (const t of ['Làm lại', 'Thử lại', 'Làm lại lần nữa', 'Try again', 'Retry']) {
-    const b = root.locator(`button:has-text("${t}"):visible`).first();
-    if (await b.count().catch(() => 0)) { await humanClick(root, b).catch(() => {}); logger && logger(`  retry: bấm "${t}"`); return true; }
-  }
+  if (await pressFirstVisibleText(root, RETRY_TEXTS, logger, '  retry: bấm')) return true;
   return false;
 }
 
 /** Bấm TẤT CẢ nút "Làm lại" đang hiện trong scope (dialog có thể có nhiều câu sai). */
 async function pressAllRetries(root, logger) {
-  const sels = '.h5p-question-try-again:visible, .h5p-question-retry:visible, .h5p-question-try-again-button:visible';
-  let n = await root.locator(sels).count().catch(() => 0);
-  for (let i = 0; i < n; i++) { await humanClick(root, root.locator(sels).nth(i)).catch(() => {}); await sleep(120); }
+  let n = await root.locator(RETRY_SEL).count().catch(() => 0);
+  for (let i = 0; i < n; i++) { await humanClick(root, root.locator(RETRY_SEL).nth(i)).catch(() => {}); await sleep(120); }
   if (!n) {
-    for (const t of ['Làm lại', 'Thử lại', 'Try again', 'Retry']) {
-      const b = root.locator(`button:has-text("${t}"):visible`).first();
-      if (await b.count().catch(() => 0)) { await humanClick(root, b).catch(() => {}); n = 1; break; }
-    }
+    const btns = root.locator('button:visible');
+    const labels = await btns.allInnerTexts().catch(() => []);
+    const idx = labels.findIndex((s) => RETRY_TEXTS.some((t) => (s || '').includes(t)));
+    if (idx >= 0) { await humanClick(root, btns.nth(idx)).catch(() => {}); n = 1; }
   }
   if (n) logger && logger(`  retry: bấm ${n} nút "Làm lại"`);
   return n;
