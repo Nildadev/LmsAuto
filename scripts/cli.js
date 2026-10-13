@@ -29,15 +29,28 @@ const arg = (name) => {
   return eq >= 0 ? hit.slice(eq + 1) : true;
 };
 
+/** Đọc cờ số nguyên >= 1; giá trị thiếu/không hợp lệ -> báo lỗi rõ + thoát (exit 2)
+ *  thay vì Number() âm thầm ra NaN rồi hành xử khó đoán ở sâu trong engine. */
+function numArg(name) {
+  const raw = arg(name);
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) {
+    console.error(`❌ Giá trị --${name}=${raw === true ? '(thiếu)' : raw} không hợp lệ (cần số nguyên >= 1).`);
+    process.exit(2);
+  }
+  return Math.floor(n);
+}
+
 async function main() {
   const dryRun = !!arg('dry-run');
   const headless = !!arg('headless');
-  const limit = arg('limit') ? Number(arg('limit')) : undefined;
+  const limit = numArg('limit');
   const useDefaultBlacklist = !arg('all');
   const completeFilesMode = !!arg('complete-files');
   const completeH5pMode = !!arg('complete-h5p');
   const doAssigned = !!arg('do-assigned');
-  const retryRounds = arg('no-retry') ? 1 : (arg('retry-rounds') ? Math.max(1, Number(arg('retry-rounds'))) : undefined);
+  const retryRounds = arg('no-retry') ? 1 : numArg('retry-rounds');
 
   console.clear();
   console.log('=================================================');
@@ -102,7 +115,9 @@ async function main() {
       console.log(`  ${mark} [${it.subject}] ${it.title} (${it.kind || '?'})`);
     }
     console.log('==========================================');
-    process.exit(0);
+    // Thoát KHÁC 0 khi còn bài lỗi để CI/script bọc ngoài biết phiên chưa xong
+    // (trước đây luôn exit(0) dù report.failed > 0).
+    process.exit(report.failed > 0 ? 1 : 0);
   } catch (err) {
     if (err instanceof InvalidCredentialsError) {
       console.log('\n❌ Tên đăng nhập hoặc mật khẩu không hợp lệ. Vui lòng thử lại!');

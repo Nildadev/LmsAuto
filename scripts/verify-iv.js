@@ -19,7 +19,7 @@ try{
   const splash=await frame.locator('.h5p-splash-play,.h5p-splash-main').first().boundingBox().catch(()=>null);
   if(splash)await page.mouse.click(splash.x+20,splash.y+20);
   await sleep(1500);
-  const res=await solveVideo(page,frame,log);
+  const res=await solveVideo(frame,log);
   log('SOLVE RESULT:',JSON.stringify(res));
   await sleep(2000);
   // Đọc điểm từ màn kết quả cuối.

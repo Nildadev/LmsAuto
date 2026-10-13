@@ -26,17 +26,33 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const QUESTION_KINDS = new Set(['choice', 'blanks', 'summary', 'dragquestion']);
 
+const CONTAINER_SEL = '.h5p-question, .h5p-single-choice-set, .h5p-drag-text, .h5p-summary';
+
+/**
+ * Danh sách container câu hỏi đang hiển thị + text của từng cái — GỘP vào 1
+ * evaluate (trước đây: isVisible() từng locator + innerText() từng cái = 2
+ * round-trip/container). `texts` đã probeNorm để khớp trực tiếp với element JSON.
+ * @returns {{locs:Locator[], texts:string[]}}
+ */
+async function visibleContainersWithTexts(frame) {
+  const info = await frame.evaluate((sel) => {
+    const vis = (el) => !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    return [...document.querySelectorAll(sel)].map((el) => ({
+      v: vis(el),
+      t: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 500),
+    }));
+  }, CONTAINER_SEL).catch(() => []);
+  const all = frame.locator(CONTAINER_SEL);
+  const locs = [], texts = [];
+  info.forEach((x, i) => {
+    if (x.v) { locs.push(all.nth(i)); texts.push(probeNorm(x.t)); }
+  });
+  return { locs, texts };
+}
+
 /** Lấy danh sách container câu hỏi đang hiển thị (DOM order). */
 async function visibleQuestionContainers(frame) {
-  // Gồm cả các loại KHÔNG dùng .h5p-question (SingleChoiceSet, DragText...).
-  const qs = frame.locator('.h5p-question, .h5p-single-choice-set, .h5p-drag-text, .h5p-summary');
-  const n = await qs.count().catch(() => 0);
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const loc = qs.nth(i);
-    if (await loc.isVisible().catch(() => false)) out.push(loc);
-  }
-  return out;
+  return (await visibleContainersWithTexts(frame)).locs;
 }
 
 /** Đọc điểm cuối trong frame (score bar + ratio). */
@@ -86,7 +102,8 @@ function probeNorm(s) {
  */
 async function solvePage(frame, elements, logger) {
   const qElements = elements.filter((e) => QUESTION_KINDS.has(e.kind));
-  let containers = await visibleQuestionContainers(frame);
+  let contInfo = await visibleContainersWithTexts(frame);
+  let containers = contInfo.locs;
   if (!containers.length || !qElements.length) {
     // Chẩn đoán: xem vì sao trang không có container câu hỏi nào.
     const domQ = await frame.evaluate(() => ({
@@ -144,7 +161,8 @@ async function solvePage(frame, elements, logger) {
       // LUÔN quét lại container thường sau khi giải popup: 1 trang có thể có CẢ
       // nút popup LẪN câu hỏi column riêng (vd Lăng kính trang 0). Trước đây
       // return sớm ngay khi popupFilled>0 -> BỎ SÓT các câu hỏi cùng trang đó.
-      containers = await visibleQuestionContainers(frame);
+      contInfo = await visibleContainersWithTexts(frame);
+      containers = contInfo.locs;
       if (!containers.length) {
         return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons }] };
       }
@@ -158,7 +176,7 @@ async function solvePage(frame, elements, logger) {
   const ivEl = elements.find((e) => e.kind === 'iv');
   if (ivEl && await frame.locator('.h5p-interactive-video:visible').count().catch(() => 0)) {
     try {
-      const ivRes = await solveVideo(frame.page(), frame, (m) => logger && logger(`  ${m}`), { params: ivEl.params });
+      const ivRes = await solveVideo(frame, (m) => logger && logger(`  ${m}`), { params: ivEl.params });
       details.push({ kind: 'iv', solved: ivRes.solved, total: ivRes.total });
       filled += ivRes.solved; good += ivRes.solved;
       logger && logger(`  IV lồng: ${ivRes.solved}/${ivRes.total}`);
@@ -179,17 +197,15 @@ async function solvePage(frame, elements, logger) {
       logger && logger(`  CP lồng: ${cpRes.solved}/${cpRes.slides}`);
     } catch (e) { logger && logger(`  CP lồng lỗi: ${String(e.message).slice(0, 60)}`); }
     // Nếu KHÔNG còn container câu hỏi nào khác -> xong trang.
-    containers = await visibleQuestionContainers(frame);
+    contInfo = await visibleContainersWithTexts(frame);
+    containers = contInfo.locs;
     if (!containers.length) return { filled, good, wrong, details };
     // Ngược lại: tiếp tục giải các container còn lại (bên dưới).
   }
 
-  // Đọc text của từng container để khớp nội dung (thay vì zip theo thứ tự).
-  const containerTexts = [];
-  for (let c = 0; c < containers.length; c++) {
-    const t = await containers[c].innerText().catch(() => '');
-    containerTexts.push(probeNorm(t).slice(0, 500));
-  }
+  // Text từng container đã đọc SẴN trong cùng 1 evaluate với bước dò visible
+  // (trước đây innerText() từng cái = 1 round-trip/container).
+  const containerTexts = contInfo.texts;
   const used = new Set();
   const findContainer = (el) => {
     const probe = probeNorm(elementProbeText(el));

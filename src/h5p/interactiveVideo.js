@@ -373,7 +373,7 @@ async function answerSummaryInPopup(frame, qc, extracted, logger) {
  * thì H5P trigger dialog đúng, seek thì không.
  * @returns {Promise<{solved:number,total:number}>}
  */
-async function solveVideo(page, frame, logger = log, jsonOverride) {
+async function solveVideo(frame, logger = log, jsonOverride) {
   const ri = await readInteractions(frame, jsonOverride);
   const interactions = ri.items || ri;
   const mode = (ri && ri.preventSkippingMode) || 'none';

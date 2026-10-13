@@ -96,7 +96,7 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
 
     let res = { solved: 0 };
     if (kind === 'book') res = await d.solveBook(tab, sub, logger).catch(() => ({ solved: 0 }));
-    else if (kind === 'iv') res = await d.solveVideo(tab, sub, logger).catch(() => ({ solved: 0 }));
+    else if (kind === 'iv') res = await d.solveVideo(sub, logger).catch(() => ({ solved: 0 }));
     else if (kind === 'single') res = await d.solveSingle(tab, sub, library, logger, d).catch(() => ({ solved: 0 }));
     if (res && res.solved > 0) { solved++; log(`  ✅ (list) xong bài ${i + 1}`); }
     await sleep(500);

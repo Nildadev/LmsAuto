@@ -102,9 +102,9 @@ async function listCourseDocs(token, courseId, opts = {}) {
  * @param {function} logger
  */
 async function solveDoc(item, token, logger, opts = {}) {
-  const p = item.p || (item.raw && item.raw.h5pContentId);
-  const c = item.c || (item.raw && item.raw.contentId) || '';
-  const cs = item.cs || (item.raw && item.raw.h5pCourseId) || '';
+  const p = item.p ?? (item.raw && item.raw.h5pContentId);
+  const c = item.c ?? (item.raw && item.raw.contentId) ?? '';
+  const cs = item.cs ?? (item.raw && item.raw.h5pCourseId) ?? '';
   const sleepFn = opts.sleep || sleep;
   if (!p) return { solved: false, reason: 'doc-missing-id', kind: 'doc' };
 

@@ -198,7 +198,7 @@ async function solveItem(page, item, logger = console.log, opts = {}, d = deps()
     const splash = await frame.locator('.h5p-splash-play,.h5p-splash-main').first().boundingBox().catch(() => null);
     if (splash) await tab.mouse.click(splash.x + 20, splash.y + 20).catch(() => {});
     await d.sleep(1200);
-    result = await d.solveVideo(tab, frame, logger);
+    result = await d.solveVideo(frame, logger);
   } else if (kind === 'single') {
     result = await d.solveSingle(tab, frame, library, logger, d);
   } else if (isDoc && d.solveDoc) {

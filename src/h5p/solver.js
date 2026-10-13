@@ -198,17 +198,20 @@ async function solveDrag(frame, extracted, logger) {
   // Playwright: Frame không có .mouse, chỉ Page có. Dùng page.mouse (tọa độ boundingBox là page coords).
   const mouse = frame.page().mouse;
 
-  // Thu thập box dropzone, sắp theo y tăng dần (khớp thứ tự json zones)
+  // Thu thập box dropzone, sắp theo (y, x) tăng dần — khớp thứ tự json zones.
+  // Thêm tie-break theo x: 2 zone CÙNG hàng (cùng y, khác cột) trước đây đứng
+  // tuỳ ý -> ghép index lệch -> kéo nhầm đáp án sang zone bên cạnh.
   const dzInfo = [];
   for (let i = 0; i < dzCount; i++) {
     const box = await dzs.nth(i).boundingBox();
     if (box) dzInfo.push({ box });
   }
-  dzInfo.sort((a, b) => a.box.y - b.box.y);
+  dzInfo.sort((a, b) => (a.box.y - b.box.y) || (a.box.x - b.box.x));
 
-  // Sort zones json theo y để khớp DOM (y phần trăm, monotonic)
-  const sortedZones = zones.slice().sort((a, b) => (a.y || 0) - (b.y || 0));
+  // Sort zones json theo (y, x) để khớp DOM (y phần trăm, monotonic).
+  const sortedZones = zones.slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
 
+  const usedDrags = new Set(); // 1 draggable chỉ kéo vào 1 zone (tránh trùng text con)
   let dragged = 0;
   for (let i = 0; i < dzInfo.length; i++) {
     const zone = sortedZones[i];
@@ -219,9 +222,11 @@ async function solveDrag(frame, extracted, logger) {
     // Tìm draggable có text chứa đáp án (DOM có prefix "có thể lấy X trong Y.")
     const norm = s => String(s || '').replace(/có thể lấy\s*\d+\s*trong\s*\d+\.?/gi, '').trim();
     const want = deburr(wantText).toLowerCase();
-    const drag = dragInfo.find(d => deburr(d.txt).toLowerCase().includes(want)) ||
-                 dragInfo.find(d => { const nd = deburr(norm(d.txt)).toLowerCase(); return nd.includes(want) || want.includes(nd); });
+    const free = (d) => !usedDrags.has(d);
+    const drag = dragInfo.find(d => free(d) && deburr(d.txt).toLowerCase().includes(want)) ||
+                 dragInfo.find(d => { if (!free(d)) return false; const nd = deburr(norm(d.txt)).toLowerCase(); return nd.includes(want) || want.includes(nd); });
     if (!drag) { logger && logger(`  zone${i}: không tìm thấy draggable cho "${wantText}"`); continue; }
+    usedDrags.add(drag);
     const dz = dzInfo[i].box;
     await mouse.move(drag.box.x + drag.box.width / 2, drag.box.y + drag.box.height / 2, { steps: 8 });
     await mouse.down();
