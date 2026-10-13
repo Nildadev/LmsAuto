@@ -788,15 +788,17 @@ async function solveVideo(frame, logger = log, jsonOverride) {
         await waitFeedback(frame, 1200);
 
         // Đọc feedback NGAY (trước khi seek) để verify đúng/sai tại chỗ.
-        // Đếm TOÀN CỤC theo bộ selector đầy đủ (FB_*_SEL) để bao cả feedback nằm
-        // NGOÀI .h5p-question (vd SingleChoiceSet .h5p-sc-is-wrong, TrueFalse
-        // .h5p-true-false-answer.*) — trước đây chỉ đếm trong .h5p-question nên
-        // bỏ sót câu sai của các loại này.
+        // QUAN TRỌNG: chỉ đếm node ĐANG HIỆN — H5P GIỮ DOM của các dialog đã đóng
+        // (ẩn bằng CSS), nếu đếm toàn cục không lọc visible thì feedback của các
+        // mốc TRƯỚC sẽ làm mọi mốc sau bị tính là "wrong" (bad cũ còn sót) hoặc
+        // "solved oan" (ok cũ còn sót -> vô hiệu hoá cờ handled).
         const fb = await frame.evaluate((sel) => {
+          const vis = (el) => !!(el && (el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length)));
+          const countIn = (root, s) => [...root.querySelectorAll(s)].filter(vis).length;
           const qs = [...document.querySelectorAll('.h5p-question')];
-          const det = qs.map((q) => `g${q.querySelectorAll(sel.correct).length}/w${q.querySelectorAll(sel.wrong).length}`);
-          const ok = document.querySelectorAll(sel.correct).length;
-          const bad = document.querySelectorAll(sel.wrong).length;
+          const det = qs.map((q) => `g${countIn(q, sel.correct)}/w${countIn(q, sel.wrong)}`);
+          const ok = countIn(document, sel.correct);
+          const bad = countIn(document, sel.wrong);
           const bar = document.querySelector('.h5p-joubelui-score-bar-progress, .h5p-score-bar-progress');
           return { ok, bad, bar: bar ? (bar.style.width || bar.getAttribute('style')) : null, det: det.join(' ') };
         }, { correct: FB_CORRECT_SEL, wrong: FB_WRONG_SEL }).catch(() => ({}));
