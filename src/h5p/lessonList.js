@@ -31,8 +31,10 @@ async function readList(frame) {
       return {
         i,
         title: (t && t.getAttribute('aria-label')) || '',
-        status: (txt.match(/Hoàn thành|Đang xem|Đang học|Chưa học|Chưa xem/) || [''])[0],
-        done: /Hoàn thành/i.test(txt),
+        // Kiểm tra trạng thái phủ định TRƯỚC: "Chưa hoàn thành" chứa chuỗi
+        // "Hoàn thành", nếu match alternative tích cực trước sẽ bị đánh dấu done oan.
+        status: (txt.match(/Chưa\s+(?:hoàn thành|học|xem)|Đang xem|Đang học|Hoàn thành/i) || [''])[0],
+        done: !/Chưa\s+(?:hoàn thành|học|xem)/i.test(txt) && /Hoàn thành/i.test(txt),
       };
     });
   }, HEADER_RE).catch(() => null);
@@ -72,6 +74,9 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
   let solved = 0;
   for (let i = 0; i < list.length; i++) {
     const wantTitle = list[i].title;
+    // Nếu có title trùng, ghi nhớ đây là lần xuất hiện thứ mấy trong danh sách
+    // ban đầu để khi list re-render không luôn mở phần tử trùng đầu tiên.
+    const occurrence = list.slice(0, i).filter((x) => x.title === wantTitle).length;
     // Quay lại danh sách cho sạch (bài trước có thể đã điều hướng khỏi list).
     if (i > 0) {
       await tab.goto(lessonUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -84,7 +89,11 @@ async function solveExerciseList(tab, frame, logger, opts = {}, d) {
     // TIÊU ĐỀ thay vì dùng index cũ (tránh mở nhầm / bỏ sót bài).
     const fresh = await readList(frame).catch(() => null);
     let idx = i;
-    if (fresh && wantTitle) { const j = fresh.findIndex((x) => x.title === wantTitle); if (j >= 0) idx = j; }
+    if (fresh && wantTitle) {
+      const matches = fresh.map((x, j) => ({ x, j })).filter(({ x }) => x.title === wantTitle);
+      const hit = matches[occurrence] || matches[matches.length - 1];
+      if (hit) idx = hit.j;
+    }
     const clicked = await clickItem(frame, idx);
     if (!clicked) { log(`  (list) không mở được bài ${i + 1}`); continue; }
     await sleep(1100);
