@@ -106,15 +106,14 @@ async function answerChoiceInPopup(frame, qc, extracted, logger, library) {
     .replace(/[^\p{L}\p{N}]/gu, '')  // bỏ space/dấu câu, giữ chữ+số (mọi script)
     .toLowerCase();
 
-  // Thu thập answer visible + text.
+  // Thu thập answer visible + text trong 1 lượt (trước đây isVisible + innerText
+  // cho TỪNG đáp án = 2 round-trip/đáp án).
+  const info = await answers.evaluateAll((els) => els.map((el) => ({
+    vis: !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length)),
+    raw: el.innerText || el.textContent || '',
+  }))).catch(() => []);
   const visible = [];
-  for (let i = 0; i < count; i++) {
-    const loc = answers.nth(i);
-    const vis = await loc.isVisible().catch(() => false);
-    if (!vis) continue;
-    const raw = await loc.innerText().catch(() => '');
-    visible.push({ i, raw, n: norm(raw) });
-  }
+  info.forEach((a, i) => { if (a.vis) visible.push({ i, raw: a.raw, n: norm(a.raw) }); });
   if (!visible.length) return { solved: false, reason: 'no-visible-answer' };
 
   const texts = (extracted && extracted.correctTexts) || [];
@@ -191,30 +190,30 @@ async function answerSingleChoiceSet(frame, extracted, logger) {
     prevQ = qText;
     // Chọn đáp án khớp correctTexts; fallback cái đầu (chưa đánh dấu sai).
     // Ưu tiên class .h5p-sc-is-correct do H5P đánh dấu sẵn (giống book/question.js).
-    const altTexts = [];
-    for (let i = 0; i < n; i++) altTexts.push(norm(await alts.nth(i).innerText().catch(() => '')));
-    let target = -1;
-    for (let i = 0; i < n; i++) {
-      const isCorrect = await alts.nth(i).evaluate((el) => /h5p-sc-is-correct/.test(el.className || '')).catch(() => false);
-      if (isCorrect) { target = i; break; }
-    }
+    // Đọc text + correct/sai của TẤT CẢ đáp án trong 1 lượt (trước đây 2 round-trip/đáp án).
+    const altInfo = await alts.evaluateAll((els) => els.map((el) => ({
+      txt: el.innerText || el.textContent || '',
+      correct: /h5p-sc-is-correct/.test(el.className || ''),
+    }))).catch(() => []);
+    const altTexts = altInfo.map((a) => norm(a.txt));
+    let target = altInfo.findIndex((a) => a.correct);
     if (target < 0) {
-      for (let i = 0; i < n; i++) { if (texts.includes(altTexts[i])) { target = i; break; } }
-      if (target < 0) { for (let i = 0; i < n; i++) { if (texts.some((w) => altTexts[i].includes(w) || w.includes(altTexts[i]))) { target = i; break; } } }
+      target = altTexts.findIndex((t) => texts.includes(t));
+      if (target < 0) target = altTexts.findIndex((t) => texts.some((w) => t.includes(w) || w.includes(t)));
     }
     // Không khớp được đáp án -> DỪNG (không click bừa cái đầu, vì H5P chấm điểm
     // ngay khi click -> sẽ ghi nhận câu SAI).
     if (target < 0) { logger && logger(`  ⚠️ single-choice-set: slide ${slide} không khớp đáp án -> dừng`); break; }
     await humanClick(frame, alts.nth(target)).catch(() => {});
     totalClicks++;
-    await sleep(500);
+    await sleep(350);
     // Nếu H5P báo sai (is-wrong) thử đáp án khác.
     const wrong = await alts.nth(target).evaluate((el) => /h5p-sc-is-wrong/.test(el.className)).catch(() => false);
     if (wrong) {
       for (let i = 0; i < n; i++) {
         if (i === target) continue;
         await humanClick(frame, alts.nth(i)).catch(() => {});
-        await sleep(700);
+        await sleep(450);
         const w2 = await alts.nth(i).evaluate((el) => /h5p-sc-is-wrong/.test(el.className)).catch(() => false);
         if (!w2) { totalClicks++; break; }
       }
@@ -238,18 +237,21 @@ async function answerMarkTheWords(frame, extracted, logger) {
     .replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ')
     .replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
   const words = frame.locator('.h5p-word-selectable-words span[role="option"]');
-  const n = await words.count().catch(() => 0);
+  // Đọc text + aria-selected của TẤT CẢ từ trong 1 lượt (trước đây 2 round-trip/từ).
+  const info = await words.evaluateAll((els) => els.map((el) => ({
+    txt: el.innerText || el.textContent || '',
+    sel: el.getAttribute('aria-selected') === 'true',
+  }))).catch(() => []);
+  const n = info.length;
   if (!n) return { solved: false, reason: 'no-words', count: 0 };
   const want = (((extracted && extracted.answers) || [])).map(norm).filter(Boolean);
   let clicked = 0;
   for (let i = 0; i < n; i++) {
-    const loc = words.nth(i);
-    const txt = norm(await loc.innerText().catch(() => ''));
+    const txt = norm(info[i].txt);
     if (!txt) continue;
     const shouldMark = want.some((w) => w === txt || txt.includes(w) || w.includes(txt));
-    const selected = (await loc.getAttribute('aria-selected').catch(() => null)) === 'true';
-    if (shouldMark !== selected) {
-      await humanClick(frame, loc).catch(() => {});
+    if (shouldMark !== info[i].sel) {
+      await humanClick(frame, words.nth(i)).catch(() => {});
       await sleep(140);
       clicked++;
     }
@@ -272,12 +274,12 @@ async function isSelected(ans) {
 async function pressCheckIn(frame, qc, logger) {
   const sel = qc.locator('.h5p-question-check-answer, .h5p-question-submit, button.h5p-question-visible').first();
   if (!(await sel.count().catch(() => 0))) return false;
-  // H5P disable nút cho tới khi có lựa chọn -> chờ enabled trước khi click.
+  // H5P disable nút cho tới khi có lựa chọn -> chờ enabled (đọc trạng thái 1 lượt/vòng
+  // thay vì 2 lượt getAttribute).
   for (let i = 0; i < 8; i++) {
-    const disabled = await sel.getAttribute('disabled').catch(() => null);
-    const ariaDisabled = await sel.getAttribute('aria-disabled').catch(() => null);
-    if (disabled === null && ariaDisabled !== 'true') break;
-    await sleep(250);
+    const st = await sel.evaluate((el) => ({ d: el.hasAttribute('disabled'), a: el.getAttribute('aria-disabled') })).catch(() => null);
+    if (!st || (!st.d && st.a !== 'true')) break;
+    await sleep(200);
   }
   await humanClick(frame, sel);
   logger && logger('    pressed check-in');
@@ -301,23 +303,26 @@ async function seekVideo(frame, second) {
 async function finishVideo(frame) {
   const dur = await frame.evaluate(() => { const v = document.querySelector('video'); return v ? v.duration : 0; }).catch(() => 0);
   if (dur) await seekVideo(frame, Math.floor(dur - 3));
-  await sleep(1500);
+  await sleep(800);
 }
 
 /** Giải Summary trong khung .h5p-summary (qc). */
 async function answerSummaryInPopup(frame, qc, extracted, logger) {
   const rows = qc.locator('li[data-bit], .h5p-summary-row, li');
-  const n = await rows.count().catch(() => 0);
+  // Đọc text + data-bit của TẤT CẢ dòng trong 1 lượt (trước đây textContent +
+  // getAttribute cho TỪNG dòng = 2 round-trip/dòng).
+  const info = await qc.evaluate((el) => [...el.querySelectorAll('li[data-bit], .h5p-summary-row, li')]
+    .map((r) => ({ txt: (r.innerText || r.textContent || '').trim(), bit: r.getAttribute('data-bit') }))
+  ).catch(() => []);
+  const n = info.length;
   if (!n) return { solved: false, reason: 'no-summary-row' };
   const data = (extracted && extracted.rows) || [];
   const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   let clicked = 0;
   for (let i = 0; i < n; i++) {
-    const row = rows.nth(i);
-    const txt = ((await row.textContent().catch(() => '')) || '').trim();
+    const { txt, bit } = info[i];
     // Ưu tiên data-bit trong DOM (H5P ghi sẵn 1=đúng/0=sai — đáng tin hơn so khớp
     // text). Chỉ khi không có mới dò theo JSON; cuối cùng mới mặc định "đúng".
-    const bit = await row.getAttribute('data-bit').catch(() => null);
     let isCorrect;
     if (bit === '1') isCorrect = true;
     else if (bit === '0') isCorrect = false;
@@ -327,9 +332,9 @@ async function answerSummaryInPopup(frame, qc, extracted, logger) {
     }
     // H5P Summary toggle 3 trạng thái: unselected -> correct(đúng) -> incorrect(sai) -> unselected.
     // Muốn đúng: click 1 lần. Muốn sai: click 2 lần. Bắt đầu từ unselected.
-    await humanClick(frame, row);
+    await humanClick(frame, rows.nth(i));
     await sleep(150);
-    if (!isCorrect) { await humanClick(frame, row); await sleep(150); }
+    if (!isCorrect) { await humanClick(frame, rows.nth(i)); await sleep(150); }
     clicked++;
   }
   logger && logger(`    summary clicked ${clicked}/${n}`);
@@ -570,6 +575,18 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   // "job": hoặc một mốc thời gian (from) hoặc tóm tắt cuối (isSummary).
   const jobs = stops.map(s => ({ stop: s, summary: false }));
   if (hasSummary) jobs.push({ stop: null, summary: true });
+  // jsonContent KHÔNG đổi trong suốt bài -> đọc 1 lần rồi CACHE (trước đây đọc lại
+  // mỗi mốc = 1 evaluate thừa/mốc). Nếu lần đọc đầu chưa trích được đáp án nào
+  // (H5P lazy-load params) thì KHÔNG cache để lần sau đọc lại.
+  let liveListCache = null;
+  const getLiveList = async () => {
+    if (liveListCache) return liveListCache;
+    const ex = jsonOverride ? list : await extractList((await readInteractions(frame, jsonOverride)).items || []);
+    const hasData = ex.some((l) => l.extracted && (l.extracted.correctTexts || l.extracted.answers || l.extracted.rows || l.extracted.elements || l.extracted.choices));
+    if (jsonOverride || hasData) liveListCache = ex;
+    return ex;
+  };
+
   let dumpedStop = false; // chỉ dump DOM 1 lần/ bài khi mốc không hiện dialog
   for (let si = 0; si < jobs.length && Date.now() < deadline; si++) {
     const { stop, summary: isSumJob } = jobs[si];
@@ -585,7 +602,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
         if (!isYoutube) {
           const reached = await driveToEnd(9000);
           logger(reached ? '  ▶ video đã tới cuối -> mở tóm tắt' : '  ⚠ video chưa tới cuối, vẫn thử mở tóm tắt');
-          await sleep(700);
+          await sleep(400);
         }
         // Tóm tắt có thể đã hiện inline trên màn kết thúc -> không bấm nếu đã có rows.
         snap = await snapVideo();
@@ -629,17 +646,10 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
 
     // H5P tự pause tại mốc; đảm bảo pause để đọc DOM (chỉ khi có video native).
     await frame.evaluate(() => { const v = document.querySelector('video'); if (v) v.pause(); });
-    await sleep(400);
+    await sleep(150);
 
-    // Đọc LẠI đáp án tại thời điểm dialog hiện (lazy-load action.params).
-    // Với jsonOverride (IV lồng trong Book/CP) params đã có sẵn -> dùng luôn `list`,
-    // khỏi tốn thêm 1 vòng evaluate mỗi mốc.
-    let liveList;
-    if (jsonOverride) { liveList = list; }
-    else {
-      const liveRaw = await readInteractions(frame, jsonOverride);
-      liveList = await extractList(liveRaw.items || liveRaw);
-    }
+    // Đáp án đã có sẵn (cache) -> không tốn evaluate lại mỗi mốc.
+    const liveList = await getLiveList();
     // Dialog hiện đúng mốc đã seek -> dùng luôn stop (isSumJob không có mốc).
     const activeFrom = isSumJob ? null : stop;
     const group = isSumJob
@@ -650,7 +660,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       // video không bị kẹt (trước đây chỉ 'continue' -> dialog treo, video đứng).
       logger(`  ⚠ ${isSumJob ? 'tóm tắt' : `mốc ${activeFrom}s`} chưa load kịp đáp án -> đóng dialog cho video chạy tiếp`);
       await pressContinue(frame, logger).catch(() => {});
-      await sleep(400);
+      await sleep(250);
       continue;
     }
     logger(`  ▶ ${isSumJob ? 'Tóm tắt' : `mốc ${activeFrom}s`} (${group.map(g => g.kind).join('+')}) @${snap.t}s`);
@@ -658,73 +668,82 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       // Giải TẤT CẢ interaction trong dialog tại mốc này. Gói thành 1 hàm để có thể
       // TRẢ LỜI LẠI khi phát hiện câu SAI mà H5P cho phép "Làm lại".
       const answerOnce = async () => {
+        // GỘP các phép dò DOM của dialog vào MỘT evaluate. Trước đây mỗi mốc tốn
+        // ~8 lượt locator.count() (mỗi lượt = 1 round-trip + 1 lần quét selector
+        // toàn DOM). Chỉ snapshot phần TĨNH (summary/SC/question/MTW/blanks);
+        // nút "Kiểm tra" vẫn đọc SAU khi trả lời vì có thể chỉ enable sau khi chọn.
+        const inv = await frame.evaluate(() => {
+          const vis = (el) => !!(el && (el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length)));
+          const qv = (s) => [...document.querySelectorAll(s)].filter(vis);
+          const qcs = qv('.h5p-question');
+          return {
+            sumRows: document.querySelectorAll('.h5p-summary li[data-bit]').length,
+            sc: qv('.h5p-single-choice-set').length,
+            qcWithAnswers: qcs.map((el, i) => (el.querySelector('.h5p-answer') ? i : -1)).filter((i) => i >= 0),
+            mtw: qv('.h5p-mark-the-words').length,
+            blanksBox: qv('.h5p-blanks, .h5p-drag-text').length,
+          };
+        }).catch(() => ({}));
+
         // (1) SUMMARY — nằm ở cấp dialog (.h5p-summary), KHÔNG nằm trong .h5p-question con.
-        const sumBox = frame.locator('.h5p-summary').first();
-        const nSumRows = await sumBox.locator('li[data-bit]').count().catch(() => 0);
-        if (nSumRows) {
+        if (inv.sumRows) {
           const ex = group.find(g => g.kind === 'summary');
           if (ex && ex.extracted) {
-            logger(`  summary: ${nSumRows} rows`);
-            await answerSummaryInPopup(frame, sumBox, ex.extracted, logger);
-            await sleep(300);
+            logger(`  summary: ${inv.sumRows} rows`);
+            await answerSummaryInPopup(frame, frame.locator('.h5p-summary').first(), ex.extracted, logger);
+            await sleep(200);
           }
         }
 
         // (2) CHOICE — gán đáp án THEO VỊ TRÍ cho từng MC container (tránh dùng chung).
         // (2a) SingleChoiceSet: dạng .h5p-single-choice-set, click là chấm điểm ngay.
-        const scBox = frame.locator('.h5p-single-choice-set:visible').first();
-        if (await scBox.count().catch(() => 0)) {
+        if (inv.sc) {
           const scEx = (group.find(g => g.kind === 'choice') || {}).extracted;
           await answerSingleChoiceSet(frame, scEx, logger);
-          await sleep(400);
+          await sleep(300);
         }
         // (2b) MultiChoice/TrueFalse trong dialog IV: có .h5p-answer.
         // Chỉ lấy kind 'choice' (blanks/dragtext xử lý riêng ở (2b-2)) để index
         // không lệch khi dialog trộn nhiều loại.
         const choices = group.filter(g => g.kind === 'choice');
-        const qcs = frame.locator('.h5p-question:visible');
-        const nQc = await qcs.count().catch(() => 0);
-        let mcIndex = 0;
-        for (let q = 0; q < nQc && mcIndex < choices.length; q++) {
-          const qc = qcs.nth(q);
-          const nAns = await qc.locator('.h5p-answer').count().catch(() => 0);
-          if (nAns) {
+        if (inv.qcWithAnswers && inv.qcWithAnswers.length) {
+          const qcs = frame.locator('.h5p-question:visible');
+          let mcIndex = 0;
+          for (const q of inv.qcWithAnswers) {
+            if (mcIndex >= choices.length) break;
+            const qc = qcs.nth(q);
             const r = await answerChoiceInPopup(frame, qc, choices[mcIndex].extracted, logger, choices[mcIndex].library);
             mcIndex++;
             // Bấm Kiểm tra NGAY trong container này (nút enabled sau khi có lựa chọn).
             if (r.solved) await pressCheckIn(frame, qc, logger);
           }
         }
-        await sleep(300);
+        await sleep(200);
 
         // (2b-2) Blanks / DragText lồng trong IV: KHÔNG có .h5p-answer nên (2b) bỏ qua.
         // Phải điền ô trống (input) hoặc kéo-thả từ; nếu không H5P không ghi nhận câu trả lời.
         const blanksEls = group.filter(g => g.kind === 'blanks');
-        if (blanksEls.length && !(await frame.locator('.h5p-mark-the-words:visible').count().catch(() => 0))) {
+        if (blanksEls.length && !inv.mtw && inv.blanksBox) {
           const b = blanksEls[0];
-          const box = frame.locator('.h5p-blanks:visible, .h5p-drag-text:visible').first();
-          if (await box.count().catch(() => 0)) {
-            const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
-            if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
-          }
+          const rb = await solveBlanks(frame, { data: b.extracted, library: b.library }, logger).catch(() => ({ solved: false }));
+          if (!rb || !rb.solved) await solveDragText(frame, { data: b.extracted, library: b.library }, logger).catch(() => {});
         }
 
         // (2c) MarkTheWords (IV lồng): KHÔNG có .h5p-answer (khác MultiChoice) nên
         //      nhánh (2b) bỏ qua. Phải bấm từng từ `span[role=option]` khớp đáp án
         //      rồi Kiểm tra — nếu không H5P không ghi nhận câu trả lời và nội dung
         //      không bao giờ hoàn thành (bài video + tài liệu kẹt 50%).
-        const mtwBox = frame.locator('.h5p-mark-the-words:visible').first();
-        if (await mtwBox.count().catch(() => 0)) {
+        if (inv.mtw) {
           const mtwEx = (group.find(g => g.kind === 'blanks') || {}).extracted;
           const rMtw = await answerMarkTheWords(frame, mtwEx, logger);
-          if (rMtw.solved) await pressCheckIn(frame, mtwBox, logger);
+          if (rMtw.solved) await pressCheckIn(frame, frame.locator('.h5p-mark-the-words:visible').first(), logger);
         }
-        await sleep(300);
+        await sleep(200);
 
         // Bấm nốt các nút Kiểm tra/Gửi còn đang visible (fallback, vd summary-submit).
         const checks = frame.locator('.h5p-question-check-answer:visible, .h5p-question-submit:visible, button.h5p-question-visible:visible');
         const nChk = await checks.count().catch(() => 0);
-        for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(200); }
+        for (let k = 0; k < nChk; k++) { await humanClick(frame, checks.nth(k)).catch(() => {}); await sleep(120); }
         logger(`  đã bấm ${nChk} nút kiểm tra @${stop}s`);
         // Chờ feedback xuất hiện (trả về sớm) thay vì sleep cứng 900ms.
         await waitFeedback(frame, 1200);
@@ -752,7 +771,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       for (let attempt = 2; attempt <= 3 && fb.bad > 0; attempt++) {
         const nRetry = await pressAllRetries(frame, logger);
         if (!nRetry) { logger(`  retry: không có nút "Làm lại" -> chấp nhận ${fb.bad} câu sai`); break; }
-        await sleep(800);
+        await sleep(500);
         const fb2 = await answerOnce();
         if (fb2.bad >= fb.bad) { fb = fb2; logger('  retry: số câu sai không giảm -> dừng'); break; }
         fb = fb2;
@@ -765,7 +784,7 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
       // Bấm "Tiếp tục/Continue" để H5P submit câu trả lời (xAPI 'answered' chỉ
       // fire sau khi đóng dialog qua nút này, KHÔNG fire khi seek đi đột ngột).
       await pressContinue(frame, logger);
-      await sleep(400);
+      await sleep(250);
     }
   }
   await finishVideo(frame);
