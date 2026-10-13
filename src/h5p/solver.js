@@ -55,8 +55,9 @@ async function solveChoice(frame, extracted, logger) {
     // Nếu không có exact match, mới xét đến khớp gần (khoảng trắng lạ).
     const exactHit = (w) => visible.find(v => v.t === w);
     const looseHit = (w) => {
-      // chỉ chấp nhận khi độ dài gần nhau (tránh superstring)
-      const cand = visible.filter(v => Math.abs(v.t.length - w.length) <= 2);
+      // CHỈ khớp gần khi CẢ HAI chuỗi đủ dài (>=4 ký tự): muốn "5" khớp "15",
+      // "Đúng" khớp "Đúng rồi" là do substring quá ngắn, không phải khớp gần.
+      const cand = visible.filter(v => v.t.length >= 4 && w.length >= 4 && Math.abs(v.t.length - w.length) <= 2);
       return cand.find(v => v.t.includes(w) || w.includes(v.t));
     };
     want.forEach(w => {
@@ -100,8 +101,12 @@ async function solveBlanks(frame, extracted, logger) {
     logger && logger('blanks: không có đáp án trích được -> bỏ qua');
     return { solved: false, reason: 'no-answers', count };
   }
-  for (let i = 0; i < count; i++) {
-    const val = answers[i] !== undefined ? answers[i] : answers[0];
+  // DOM có NHIỀU input hơn số đáp án trích được -> chỉ điền số ô CÓ đáp án.
+  // Trước đây gõ lặp answers[0] vào các ô thừa (chắc chắn SAI) rồi vẫn báo solved
+  // -> vi phạm chính sách trung thực. Thiếu đáp án => KHÔNG tính là đã giải.
+  const nFill = Math.min(count, answers.length);
+  for (let i = 0; i < nFill; i++) {
+    const val = answers[i];
     const inp = inputs.nth(i);
     await inp.click({ timeout: 4000 });
     await sleep(60);
@@ -109,8 +114,12 @@ async function solveBlanks(frame, extracted, logger) {
     await inp.type(val, { delay: 25 });
     await humanDelay();
   }
-  logger && logger(`blanks: filled ${count}/${answers.length} answers`);
-  return { solved: true, filled: count };
+  if (count > answers.length) {
+    logger && logger(`blanks: DOM có ${count} ô nhưng chỉ trích được ${answers.length} đáp án -> KHÔNG điền bừa, tính là chưa giải`);
+    return { solved: false, filled: nFill, reason: 'answers-fewer-than-inputs' };
+  }
+  logger && logger(`blanks: filled ${nFill}/${answers.length} answers`);
+  return { solved: true, filled: nFill };
 }
 
 /**
@@ -151,11 +160,12 @@ async function solveDragText(frame, extracted, logger) {
       if (nt === nWant || nt.includes(nWant) || nWant.includes(nt)) { target = w; break; }
     }
     if (target < 0) {
-      // Fallback: thử khớp theo thứ tự (bank giữ đúng thứ tự đáp án).
-      for (let w = 0; w < nWords; w++) { const t = normalizeText(texts[w]); if (t && !usedText.has(t)) { target = w; break; } }
-      if (target >= 0) logger && logger(`  ô ${i}: fallback theo thứ tự -> "${texts[target]}" (muốn "${want}")`);
+      // KHÔNG fallback "theo thứ tự": thứ tự bank KHÔNG đảm bảo khớp đáp án (H5P
+      // xáo trộn) -> kéo từ đầu tiên là ghi nhận đáp án SAI mà vẫn báo solved.
+      // Chính sách trung thực: bỏ ô này, chỉ tính những ô khớp CHẮC CHẮN.
+      logger && logger(`  ô ${i}: không thấy từ khớp "${want}" -> bỏ (không đoán)`);
+      continue;
     }
-    if (target < 0) { logger && logger(`  ô ${i}: không thấy từ "${want}"`); continue; }
     usedText.add(normalizeText(texts[target]));
     const from = await center(words.nth(target));
     let to = await center(zones.nth(i));
@@ -210,6 +220,14 @@ async function solveDrag(frame, extracted, logger) {
 
   // Sort zones json theo (y, x) để khớp DOM (y phần trăm, monotonic).
   const sortedZones = zones.slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
+
+  // DOM zone và json zone PHẢI khớp 1:1 — ghép thuần theo thứ tự, nếu lệch 1 cái
+  // (zone ẩn/extra) là TẤT CẢ các cặp sau dịch sang một -> kéo nhầm hết. Lệch số
+  // lượng thì DỪNG trung thực thay vì kéo sai hàng loạt.
+  if (dzInfo.length !== sortedZones.length) {
+    logger && logger(`drag: DOM có ${dzInfo.length} dropzone nhưng json có ${sortedZones.length} zone -> bỏ qua (không đoán)`);
+    return { solved: false, reason: 'zone-count-mismatch', domZones: dzInfo.length, jsonZones: sortedZones.length };
+  }
 
   const usedDrags = new Set(); // 1 draggable chỉ kéo vào 1 zone (tránh trùng text con)
   let dragged = 0;
@@ -295,10 +313,12 @@ async function pressCheck(frame, logger) {
   return false;
 }
 
-/** Bấm "Câu tiếp theo"/"Next". Trả về true nếu bấm được (chứng tỏ câu trước ĐÚNG). */
+/** Bấm "Câu tiếp theo"/"Next". Trả về true nếu bấm được (chứng tỏ câu trước ĐÚNG).
+ * KHÔNG đưa .h5p-question-try-again vào đây: nút đó CHỈ xuất hiện sau câu SAI —
+ * bấm nó là reset câu vừa trả lời rồi nhảy đáp án lệch sang câu kế (bug cũ). */
 async function pressNext(frame, logger) {
   if (await pressFirstVisibleText(frame, ['Câu tiếp theo', 'Tiếp theo', 'Câu hỏi tiếp theo', 'Next'], logger, 'next')) return true;
-  const sel = frame.locator('.h5p-question-next:visible, .h5p-question-try-again:visible').first();
+  const sel = frame.locator('.h5p-question-next:visible').first();
   if ((await sel.count().catch(() => 0))) { await humanClick(frame, sel); return true; }
   return false;
 }

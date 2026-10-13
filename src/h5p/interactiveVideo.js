@@ -152,7 +152,8 @@ async function answerChoiceInPopup(frame, qc, extracted, logger, library) {
       // Giới hạn chênh lệch độ dài <=2 để tránh khớp siêu chuỗi ("cat" ~ "category").
       let hit = visible.find(v => v.n === w);
       if (!hit) {
-        const cand = visible.filter(v => Math.abs(v.n.length - w.length) <= 2);
+        // Khớp gần CHỈ khi cả hai chuỗi đủ dài (>=4): "5" chứa trong "15" là sai.
+        const cand = visible.filter(v => v.n.length >= 4 && w.length >= 4 && Math.abs(v.n.length - w.length) <= 2);
         hit = cand.find(v => v.n.includes(w) || w.includes(v.n));
       }
       if (hit) {

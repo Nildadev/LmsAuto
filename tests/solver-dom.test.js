@@ -6,7 +6,7 @@
  * Chạy: node tests/solver-dom.test.js
  */
 const assert = require('assert');
-const { solveChoice, pressCheck, pressNext, retryAvailable } = require('../src/h5p/solver');
+const { solveChoice, solveBlanks, solveDrag, pressCheck, pressNext, retryAvailable } = require('../src/h5p/solver');
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -21,6 +21,7 @@ async function check(name, fn) {
 function fakeFrame(els = []) {
   const calls = { count: 0, allInnerTexts: 0, innerText: 0, isVisible: 0, click: 0, evaluate: 0 };
   const clicked = [];
+  const fills = [];
   const base = (sel) => sel.replace(/:visible/g, '').replace(/:is\(([^)]*)\)/g, '$1')
     .split(',').map((s) => s.trim()).filter(Boolean);
   const matched = (sel) => els.filter((e) => (
@@ -29,8 +30,12 @@ function fakeFrame(els = []) {
   ));
   const mkEl = (sel) => ({
     boundingBox: async () => null, // -> humanClick rơi vào locator.click()
-    count: async () => { calls.count++; return 1; },
+    // count phải phản ánh số node KHỚP thật (trước đây trả 1 cứng -> selector
+    // không khớp nào cũng "tồn tại" -> giả lập sai hành vi Playwright)
+    count: async () => { calls.count++; return matched(sel).length; },
     click: async () => { calls.click++; clicked.push(sel); },
+    fill: async (v) => { fills.push(v); },
+    type: async (v) => { fills.push(v); },
     isVisible: async () => { calls.isVisible++; return true; },
     innerText: async () => { calls.innerText++; return ''; },
     waitFor: async () => {},
@@ -48,7 +53,7 @@ function fakeFrame(els = []) {
     innerText: async () => { calls.innerText++; return ''; },
   });
   return {
-    calls, clicked, locator: loc,
+    calls, clicked, fills, locator: loc,
     evaluate: async () => { calls.evaluate++; return null; },
     page: () => ({
       mouse: { move: async () => {}, down: async () => {}, up: async () => {}, click: async () => {} },
@@ -131,6 +136,47 @@ function fakeFrame(els = []) {
   await check('pressNext: fallback .h5p-question-next khi không có nhãn text', async () => {
     const f = fakeFrame([{ cls: 'h5p-question-next', t: '', visible: true }]);
     assert.strictEqual(await pressNext(f, () => {}), true);
+  });
+
+  await check('pressNext: KHÔNG bấm nút "Làm lại" (.h5p-question-try-again chỉ hiện sau câu SAI)', async () => {
+    const f = fakeFrame([{ cls: 'h5p-question-try-again', t: '', visible: true }]);
+    assert.strictEqual(await pressNext(f, () => {}), false, 'phải trả false');
+    assert.strictEqual(f.clicked.length, 0, 'không được click nút try-again');
+  });
+
+  await check('solveBlanks: DOM 3 ô nhưng chỉ 2 đáp án -> KHÔNG điền lặp answers[0], solved=false', async () => {
+    const f = fakeFrame([
+      { cls: 'input.h5p-text-input', t: '', visible: true },
+      { cls: 'input.h5p-text-input', t: '', visible: true },
+      { cls: 'input.h5p-text-input', t: '', visible: true },
+    ]);
+    const r = await solveBlanks(f, { data: { answers: ['một', 'hai'] } }, () => {});
+    assert.strictEqual(r.solved, false, 'thiếu đáp án -> không tính đã giải');
+    assert.strictEqual(r.reason, 'answers-fewer-than-inputs');
+    assert.deepStrictEqual(f.fills.filter(v => v !== ''), ['một', 'hai'], 'chỉ điền 2 ô có đáp án, không lặp answers[0] vào ô 3');
+  });
+
+  await check('solveBlanks: đủ đáp án -> solved=true', async () => {
+    const f = fakeFrame([
+      { cls: 'input.h5p-text-input', t: '', visible: true },
+      { cls: 'input.h5p-text-input', t: '', visible: true },
+    ]);
+    const r = await solveBlanks(f, { data: { answers: ['một', 'hai'] } }, () => {});
+    assert.strictEqual(r.solved, true);
+    assert.deepStrictEqual(f.fills.filter(v => v !== ''), ['một', 'hai']);
+  });
+
+  await check('solveDrag: số zone DOM ≠ json -> DỪNG trung thực (không kéo sai hàng loạt)', async () => {
+    const f = fakeFrame([
+      { cls: 'h5p-draggable', t: 'A', visible: true },
+      { cls: 'h5p-draggable', t: 'B', visible: true },
+      { cls: 'h5p-dropzone', t: '', visible: true },
+      { cls: 'h5p-dropzone', t: '', visible: true },
+    ]);
+    // boundingBox của fake trả null -> dzInfo rỗng ≠ 2 json zone -> phải bail
+    const r = await solveDrag(f, { data: { elements: ['A', 'B'], zones: [{ y: 0, x: 0 }, { y: 10, x: 0 }] } }, () => {});
+    assert.strictEqual(r.solved, false);
+    assert.strictEqual(r.reason, 'zone-count-mismatch');
   });
 
   await check('retryAvailable: nhận "Thử lại" trong 1 lượt đọc nhãn', async () => {

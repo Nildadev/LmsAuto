@@ -38,7 +38,9 @@ async function solveChoice(root, container, extracted, logger) {
   if (want.length) {
     for (const w of want) {
       let hit = visible.find((v) => v.t === w);
-      if (!hit) hit = visible.find((v) => v.t.length && Math.abs(v.t.length - w.length) <= 2 && (v.t.includes(w) || w.includes(v.t)));
+      // Khớp gần CHỈ khi cả hai chuỗi đủ dài (>=4): "5" chứa trong "15" là sai,
+      // không phải khớp gần.
+      if (!hit) hit = visible.find((v) => v.t.length >= 4 && w.length >= 4 && Math.abs(v.t.length - w.length) <= 2 && (v.t.includes(w) || w.includes(v.t)));
       if (hit && !toClick.includes(hit.i)) toClick.push(hit.i);
     }
   } else {
