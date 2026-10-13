@@ -12,20 +12,29 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 /** Đọc danh sách interactions từ H5PIntegration trong frame (hoặc từ jsonContent truyền vào). */
 async function readInteractions(frame, jsonOverride) {
-  const jc = jsonOverride || await frame.evaluate(() => {
-    const c = window.H5PIntegration.contents;
-    const k = Object.keys(c)[0];
-    let j = c[k].jsonContent;
-    if (typeof j === 'string') { try { j = JSON.parse(j); } catch (_) {} }
-    return j;
-  });
+  let jc = jsonOverride;
+  if (!jc) {
+    jc = await frame.evaluate(() => {
+      try {
+        const c = window.H5PIntegration && window.H5PIntegration.contents;
+        const k = c && Object.keys(c)[0];
+        let j = c && c[k] && c[k].jsonContent;
+        if (typeof j === 'string') { try { j = JSON.parse(j); } catch (_) {} }
+        return j || null;
+      } catch (_) { return null; }
+    }).catch(() => null);
+  }
   // H5P InteractiveVideo có 2 cách lồng nhau:
   //  - Đứng riêng: jsonContent = { interactiveVideo:{...}, override:{...}, l10n:{...} }
   //  - Lồng trong IB/CP: caller truyền { params: <IV params> } -> override nằm ở
   //    jc.params.override (NGANG HÀNG với jc.params.interactiveVideo).
-  let iv = jc.interactiveVideo;
-  let root = jc;
-  if (!iv && jc.params && jc.params.interactiveVideo) { iv = jc.params.interactiveVideo; root = jc.params; }
+  let iv = jc && jc.interactiveVideo;
+  let root = jc || {};
+  if (!iv && jc && jc.params && jc.params.interactiveVideo) { iv = jc.params.interactiveVideo; root = jc.params; }
+  // `readable`: phân biệt RÕ "video không có câu hỏi" vs "KHÔNG đọc được H5PIntegration"
+  // (nếu không đọc được thì không biết bài có câu hỏi hay không -> log cảnh báo, không
+  // âm thầm coi như video-chỉ-xem).
+  const readable = !!(iv);
   iv = iv || {};
   const assets = iv.assets || {};
   // QUAN TRỌNG: preventSkippingMode nằm ở `override` NGANG HÀNG với `interactiveVideo`
@@ -58,7 +67,7 @@ async function readInteractions(frame, jsonOverride) {
       params: sum.params,
     });
   }
-  return { items: out, seekLocked: locked, preventSkippingMode: sm, summaryDisplayAt: Number(iv.summary && iv.summary.displayAt) || 0 };
+  return { items: out, seekLocked: locked, preventSkippingMode: sm, readable, summaryDisplayAt: Number(iv.summary && iv.summary.displayAt) || 0 };
 }
 
 function kindOf(library) {
@@ -343,7 +352,11 @@ async function solveVideo(page, frame, logger = log, jsonOverride) {
   // thành. Kiểm tra TRƯỚC cờ khoá tua để video-khoá-tua-không-câu-hỏi vẫn được tính
   // hoàn thành (thay vì bị bỏ qua oan).
   if (!interactions.length) {
-    logger(`IV: không có interactions (video chỉ cần xem)${seekLocked ? ` — khoá tua (${mode}) nhưng không cần tua` : ''}`);
+    if (ri && ri.readable === false) {
+      logger('  ⚠️ Không đọc được H5PIntegration — không xác định được bài có câu hỏi hay không; coi như video chỉ cần xem');
+    } else {
+      logger(`IV: không có interactions (video chỉ cần xem)${seekLocked ? ` — khoá tua (${mode}) nhưng không cần tua` : ''}`);
+    }
     return { solved: 0, total: 0, noQuestions: true };
   }
   // BÀI KHÓA TUA (preventSkipping = forward|both): có câu hỏi nhưng KHÔNG thể tua tới

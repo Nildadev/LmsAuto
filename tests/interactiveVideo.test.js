@@ -100,6 +100,20 @@ function standalone(mode, extraIv) {
     assert.strictEqual(r.summaryDisplayAt, 30);
   });
 
+  await check('không đọc được H5PIntegration (json null) -> readable=false, không crash', async () => {
+    // jsonOverride=null -> buộc đi nhánh frame.evaluate (mô phỏng trang không có H5PIntegration).
+    const r = await readInteractions({ evaluate: async () => null }, null);
+    assert.strictEqual(r.readable, false);
+    assert.strictEqual(r.items.length, 0);
+    assert.strictEqual(r.seekLocked, false);
+  });
+
+  await check('frame.evaluate lỗi -> không crash, readable=false', async () => {
+    const r = await readInteractions({ evaluate: async () => { throw new Error('detached'); } }, null);
+    assert.strictEqual(r.readable, false);
+    assert.strictEqual(r.items.length, 0);
+  });
+
   await check('DỮ LIỆU THẬT (sample-interactivebook.json): IV lồng -> đọc đúng override', async () => {
     const f = path.join(__dirname, '..', 'docs', 'sample-interactivebook.json');
     const book = JSON.parse(fs.readFileSync(f, 'utf8'));
