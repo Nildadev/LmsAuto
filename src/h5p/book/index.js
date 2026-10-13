@@ -125,6 +125,7 @@ async function solvePage(frame, elements, logger) {
   const hasRealQ = popupEls.length > 0 || elements.some((e) => QUESTION_KINDS.has(e.kind));
   let popupFilled = 0;
   let popupButtons = 0;
+  const popupUsed = new Set(); // elements đã giải qua popup
   if (hasRealQ) {
     // Chỉ nút trong CP đang HIỆN (trang IB trước đó ẩn).
     const visCp = frame.locator('.h5p-course-presentation:visible').last();
@@ -139,6 +140,7 @@ async function solvePage(frame, elements, logger) {
         if (!(await btn.isVisible().catch(() => false))) continue;
         const el = popupEls[ei] || elements.find((e) => QUESTION_KINDS.has(e.kind)) || qElements[0];
         ei++;
+        if (el) popupUsed.add(el);
         try {
           await btn.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
           await btn.click({ timeout: 3000 });
@@ -228,6 +230,10 @@ async function solvePage(frame, elements, logger) {
   };
   for (let k = 0; k < qElements.length; k++) {
     const el = qElements[k];
+    // Element ĐÃ giải qua popup: bỏ qua. Trước đây fall-through mới (sau fix bỏ
+    // return sớm) khiến element popup bị findContainer ghép theo 'order' vào
+    // container THƯỜNG đầu tiên chưa dùng -> trả lời NHẦM nội dung container đó.
+    if (popupUsed.has(el)) { details.push({ k, kind: el.kind, base: el.base, note: 'solved-via-popup' }); continue; }
     const slot = findContainer(el);
     if (!slot) { details.push({ k, kind: el.kind, base: el.base, note: 'no-container' }); continue; }
     const container = containers[slot.c];

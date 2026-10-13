@@ -50,10 +50,11 @@ function annotate(el) {
   return { library: el.library, base, kind, params: el.params, extracted };
 }
 
-/** Expand 1 element: nếu là Column thì trả về các element con (đã annotate). */
-function expand(el) {
+/** Expand 1 element: nếu là Column thì ĐỆ QUY trả về các element con (đã annotate).
+ * Trước đây chỉ nới 1 cấp -> Column-lồng-Column bị bỏ câu hỏi ở cấp 2+ ÂM THẦM. */
+function expand(el, depth = 0) {
   const a = annotate(el);
-  if (a.kind === 'column') return columnElements(el).map(annotate);
+  if (a.kind === 'column' && depth < 4) return columnElements(el).flatMap((c) => expand(c, depth + 1));
   return [a];
 }
 
@@ -71,7 +72,9 @@ function parseBook(jsonContent) {
     const pages = j.presentation.slides.map((s, i) => ({
       i,
       title: `Slide ${i + 1}`,
-      elements: (s.elements || []).map((e) => e.action).filter(Boolean).map(annotate),
+      // expand() (đệ quy): Column nằm TRÊN slide CP trước đây bị gộp thành 1
+      // element 'column' với extracted=null -> câu hỏi bên trong bị bỏ.
+      elements: (s.elements || []).map((e) => e.action).filter(Boolean).flatMap((el) => expand(el)),
     }));
     return { kind: 'coursepresentation', pages };
   }

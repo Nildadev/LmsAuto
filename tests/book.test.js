@@ -58,6 +58,21 @@ check('CP: mọi element đều có base/kind', () => {
     assert.ok(e.kind, 'kind không rỗng');
   }));
 });
+check('schema: Column lồng Column -> đệ quy giữ lại câu hỏi cấp 2', () => {
+  const nested = {
+    presentation: { slides: [{ elements: [{ action: {
+      library: 'H5P.Column 1.18', params: { content: [{ content: {
+        library: 'H5P.Column 1.18', params: { content: [{ content: {
+          library: 'H5P.MultiChoice 1.16', params: { question: 'Q', answers: [{ text: 'Đúng', correct: true }] },
+        } }] },
+      } }] },
+    } }] }] },
+  };
+  const m = parseBook(nested);
+  assert.strictEqual(m.pages[0].elements.length, 1);
+  assert.strictEqual(m.pages[0].elements[0].base, 'H5P.MultiChoice');
+  assert.deepStrictEqual(m.pages[0].elements[0].extracted.correctTexts, ['Đúng']);
+});
 
 // ── InteractiveBook fixture ──
 check('IB: parse -> interactivebook, 6 chương', () => {
