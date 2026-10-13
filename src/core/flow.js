@@ -428,7 +428,11 @@ async function runFlow(opts = {}) {
 
     const maxRounds = Math.max(1, Number(opts.retryRounds ?? 2));
     let prevRemain = Infinity;
+    // Hủy hợp tác: client ngắt kết nối (web) -> shouldStop() true -> dừng giữa các
+    // bài, thoát vòng lặp, rồi finally đóng browser/context (không rò rỉ tài nguyên).
+    const stopRequested = () => !!(opts.shouldStop && opts.shouldStop());
     for (let round = 0; round < maxRounds; round++) {
+      if (stopRequested()) { logger('⏹️ Dừng theo yêu cầu (client ngắt kết nối).'); break; }
       if (round > 0) {
         // Quét lại cuối phiên: bài nào còn status≠3 thì đưa lại hàng đợi làm tiếp.
         const remain = await rescanRemaining();
@@ -439,6 +443,7 @@ async function runFlow(opts = {}) {
         list = opts.limit ? remain.slice(0, opts.limit) : remain;
       }
       for (let i = 0; i < list.length; i++) {
+        if (stopRequested()) { logger('⏹️ Dừng theo yêu cầu (client ngắt kết nối).'); break; }
         const it = list[i];
         logger(`\n━━━ [${round > 0 ? `vòng ${round + 1} · ` : ''}${i + 1}/${list.length}] [${it.subject}] ${it.title} ━━━`);
         let res;

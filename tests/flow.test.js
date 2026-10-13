@@ -211,6 +211,20 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.failed, 1, 'tính là chưa xác nhận hoàn thành');
   });
 
+  await checkAsync('runFlow R6: shouldStop -> dừng giữa các bài (client ngắt kết nối)', async () => {
+    const { d, calls } = fakeDeps({ todo: [
+      { title: 'A', contentId: 'c1', p: 'P1', cs: 'CS1' },
+      { title: 'B', contentId: 'c2', p: 'P2', cs: 'CS1' },
+      { title: 'C', contentId: 'c3', p: 'P3', cs: 'CS1' },
+    ] });
+    const rep = await runFlow({
+      token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d,
+      shouldStop: () => calls.solveBook >= 1, // ngắt sau khi giải xong bài đầu
+    });
+    assert.strictEqual(calls.solveBook, 1, 'chỉ giải 1 bài rồi dừng');
+    assert.strictEqual(rep.total, 1, 'chỉ 1 bài được xử lý');
+  });
+
   await checkAsync('solveItem R4: solver throw -> vẫn ĐÓNG tab (try/finally)', async () => {
     const { d } = fakeDeps({ kind: 'book' });
     let closed = 0;

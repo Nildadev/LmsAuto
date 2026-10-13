@@ -120,6 +120,10 @@ export default function Home() {
   const autoScrollRef = useRef(true);
   const previewImgRef = useRef(null);
   const loadedRef     = useRef(false);
+  // Trạng thái CUỐI của mỗi bài (key = subject|title) -> đếm KHÔNG trùng khi bài
+  // được làm lại ở vòng quét lại (vòng 2 log "✅ Xong" lần nữa cho cùng 1 bài).
+  const statusRef     = useRef(new Map());
+  const currentKeyRef = useRef('');
 
   /* Load saved settings */
   useEffect(() => {
@@ -180,30 +184,52 @@ export default function Home() {
   };
 
   /* Parse log -> stats (khớp engine mới src/core/flow.js) */
+  // Tính lại stats từ bản đồ trạng thái (khử trùng theo bài -> không đếm 2 lần).
+  const recount = () => {
+    let completed = 0, errors = 0, skipped = 0;
+    for (const v of statusRef.current.values()) {
+      if (v === 'completed') completed++;
+      else if (v === 'error') errors++;
+      else if (v === 'skipped') skipped++;
+    }
+    setStats((p) => ({ ...p, completed, errors, skipped, total: Math.max(p.total, statusRef.current.size) }));
+  };
+
   const addLog = (message) => {
     setLogs((prev) => [...prev, { message, time: getTimeStamp() }]);
+
+    // Header mỗi bài: "━━━ [i/total] [subject] title ━━━" — vòng quét lại có thêm
+    // tiền tố "vòng N · " trong ngoặc (trước đây regex không khớp -> không hiện tên bài).
+    const itemM = message.match(/━━━ \[(?:vòng \d+ · )?\d+\/\d+\] \[([^\]]*)\] (.+) ━━━/);
+    if (itemM) {
+      currentKeyRef.current = `${itemM[1]}|${itemM[2]}`;
+      setCurrentItem(itemM[2]);
+    }
+
     if (message.includes('Tổng cần giải')) {
       const totalM = message.match(/Tổng cần giải: (\d+)/);
       if (totalM) {
-        const total = parseInt(totalM[1]);
-        setStats((p) => ({ ...p, total, completed: 0, errors: 0 }));
+        statusRef.current.clear();
+        currentKeyRef.current = '';
+        setStats((p) => ({ ...p, total: parseInt(totalM[1]), completed: 0, errors: 0, skipped: 0 }));
       }
+      return;
     }
-    if (message.includes('✅ Xong')) {
-      setStats((p) => ({ ...p, completed: p.completed + 1 }));
-    }
-    if (message.includes('Chưa xác nhận hoàn thành')) {
-      setStats((p) => ({ ...p, errors: p.errors + 1 }));
-    }
-    if (message.includes('Bỏ qua (khoá tua)')) {
-      setStats((p) => ({ ...p, skipped: p.skipped + 1 }));
-    }
+
+    // Trạng thái CUỐI của mỗi bài — ghi vào bản đồ rồi đếm lại (không cộng dồn).
+    const key = currentKeyRef.current || `__${message}`;
+    if (message.includes('✅ Xong')) { statusRef.current.set(key, 'completed'); recount(); return; }
+    if (message.includes('Chưa xác nhận hoàn thành')) { statusRef.current.set(key, 'error'); recount(); return; }
+    if (message.includes('Bỏ qua (khoá tua)')) { statusRef.current.set(key, 'skipped'); recount(); return; }
+
+    // Dòng tổng kết cuối phiên (số liệu chính thức từ report) — ghi đè.
     if (message.includes('Kết quả:')) {
       const m = message.match(/Kết quả: (\d+)\/(\d+) bài xác nhận xong, (\d+) lỗi\./);
       if (m) setStats((p) => ({ ...p, completed: parseInt(m[1]), total: parseInt(m[2]), errors: parseInt(m[3]) }));
+      return;
     }
-    const itemM = message.match(/━━━ \[\d+\/\d+\] \[[^\]]*\] (.+) ━━━/);
-    if (itemM) setCurrentItem(itemM[1]);
+    const skipM = message.match(/Bỏ qua (\d+) bài khoá tua/);
+    if (skipM) setStats((p) => ({ ...p, skipped: parseInt(skipM[1]) }));
   };
 
   /* Start */
@@ -215,6 +241,8 @@ export default function Home() {
     setHasPreview(false);
     if (previewImgRef.current) previewImgRef.current.src = '';
     setCurrentItem('');
+    statusRef.current.clear();
+    currentKeyRef.current = '';
     setStats({ total: 0, completed: 0, skipped: 0, errors: 0 });
     addLog('🚀 Đang khởi tạo kết nối với LMS360...');
 
@@ -227,7 +255,6 @@ export default function Home() {
       });
       if (!response.ok) {
         addLog(`❌ Máy chủ trả về lỗi: ${response.status}`);
-        setIsRunning(false);
         return;
       }
       const reader = response.body.getReader();
@@ -255,11 +282,19 @@ export default function Home() {
       }
     } catch (err) {
       addLog(`❌ Không thể kết nối: ${err.message}`);
+    } finally {
+      // LUÔN mở khoá nút Bắt đầu, kể cả khi stream kết thúc bất thường (không có
+      // 'done'/'error') — trước đây isRunning kẹt true -> không chạy lại được.
       setIsRunning(false);
     }
   };
 
-  const clearLogs = () => { setLogs([]); setStats({ total: 0, completed: 0, skipped: 0, errors: 0 }); };
+  const clearLogs = () => {
+    setLogs([]);
+    statusRef.current.clear();
+    currentKeyRef.current = '';
+    setStats({ total: 0, completed: 0, skipped: 0, errors: 0 });
+  };
 
   const progress = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
