@@ -89,6 +89,20 @@ check('DragText: đáp án từ params.textField (token *...*)', () => {
   assert.deepStrictEqual(r.answers, ['yêu', 'xanh']);
 });
 
+check('Blanks: đáp án dấu sao PHẢI stripHtml (entity + tag)', () => {
+  // Nếu không strip, solver sẽ gõ nguyên văn "a&amp;b" / "<b>x</b>" -> H5P chấm SAI.
+  const r1 = extractAnswers('H5P.Blanks 1.14', { params: { text: 'Dòng *a&amp;b* và *x&nbsp;y*.' } });
+  assert.strictEqual(r1.kind, 'blanks');
+  assert.deepStrictEqual(r1.answers, ['a&b', 'x y']);
+  const r2 = extractAnswers('H5P.Blanks 1.14', { params: { text: 'Chọn *<b>đúng</b>* nhé.' } });
+  assert.deepStrictEqual(r2.answers, ['đúng']);
+});
+
+check('Blanks: nhiều đáp án trong 1 cặp sao -> lấy đáp án ĐẦU (đã strip)', () => {
+  const r = extractAnswers('H5P.Blanks 1.14', { params: { text: 'Điền *một/hai/ba* vào ô.' } });
+  assert.deepStrictEqual(r.answers, ['một']);
+});
+
 check('SingleChoiceSet: correctTexts từ choices[].answers[].correct', () => {
   const r = extractAnswers('H5P.SingleChoiceSet 1.11', { params: { choices: [
     { question: 'Q1', answers: [{ text: 'A', correct: false }, { text: 'B', correct: true }] },

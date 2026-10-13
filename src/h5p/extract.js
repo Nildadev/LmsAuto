@@ -102,7 +102,11 @@ function extractStarAnswers(text) {
   while ((m = re.exec(text)) !== null) {
     // H5P cho phép nhiều đáp án trong 1 cặp dấu sao, ngăn bởi '/'. Lấy đáp án đầu
     // (downstream so khớp theo text, không xử lý được mảng).
-    matches.push(m[1].split('/')[0].trim());
+    // PHẢI stripHtml như mọi extractor khác: nếu không, đáp án dạng "*a&amp;b*"
+    // hoặc "*<b>x</b>*" sẽ được GÕ NGUYÊN VĂN vào ô trống / kéo thả -> H5P chấm SAI.
+    // Thứ tự QUAN TRỌNG: strip TRƯỚC rồi mới tách '/' — vì thẻ đóng "</b>" cũng
+    // chứa '/' nên nếu tách trước sẽ cắt nát thẻ ("đúng</b>" -> "đúng<").
+    matches.push(stripHtml(m[1]).split('/')[0].trim());
   }
   return matches;
 }
