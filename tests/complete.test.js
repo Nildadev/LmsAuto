@@ -141,6 +141,30 @@ function makeFetch(scene) {
     assert.strictEqual(r.parts.find((x) => x.p === 'docNew').isFile, true);
   });
 
+  await check('scanIncomplete: quét khóa SONG SONG nhưng giữ nguyên thứ tự parts', async () => {
+    const courses = Array.from({ length: 6 }, (_, i) => ({ id: `CS${i}`, title: `K${i}` }));
+    const views = {};
+    for (const c of courses) views[c.id] = [{ h5p_content_id: `${c.id}-p`, status: 0 }];
+    const scene = { courses: [courses], views, details: {} };
+    for (const c of courses) scene.details[`${c.id}-p`] = { type: 0, title: `Bài ${c.id}` };
+    // fetchImpl đếm số request "đang bay" để chứng minh có chạy song song.
+    let inFlight = 0, maxInFlight = 0;
+    const base = makeFetch(scene).fetchImpl;
+    const fetchImpl = async (url, opts) => {
+      inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+      try { await new Promise((r) => setTimeout(r, 5)); return await base(url, opts); }
+      finally { inFlight--; }
+    };
+    const r = await scanIncomplete('T', { fetchImpl, courseConcurrency: 4 });
+    assert.strictEqual(r.parts.length, 6);
+    assert.ok(maxInFlight > 1, `phải chạy song song (maxInFlight=${maxInFlight})`);
+    assert.deepStrictEqual(
+      r.parts.map((x) => x.p),
+      courses.map((c) => `${c.id}-p`),
+      'thứ tự parts phải khớp thứ tự khóa (ổn định)'
+    );
+  });
+
   await check('completeFiles: dryRun chỉ liệt kê, KHÔNG mark', async () => {
     const scene = {
       courses: [[{ id: 'CS1', title: 'K1' }]],

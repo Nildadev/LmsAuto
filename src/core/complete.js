@@ -122,11 +122,13 @@ async function mapLimit(items, limit, fn) {
 async function scanIncomplete(token, opts = {}) {
   const logger = opts.logger || (() => {});
   const courses = await listAllClassCourses(token, opts);
-  const parts = [];
-  let doneParts = 0;
-  for (const c of courses) {
+  // Xử lý từng khóa SONG SONG (giới hạn) — trước đây for-tuần-tự nên lớp có 10-20
+  // khóa phải chờ lần lượt từng HTTP (learn_status + listCourseDocs) -> vài chục giây
+  // mỗi lần quét (và bị quét 2 lần: đầu phiên + vòng quét lại). mapLimit giữ NGUYÊN
+  // thứ tự kết quả -> danh sách parts/báo cáo vẫn ổn định như trước.
+  const perCourse = await mapLimit(courses, opts.courseConcurrency || 5, async (c) => {
     const views = await fetchLearnStatus(token, c.id, opts);
-    doneParts += views.filter((v) => v.status === 3).length;
+    const done = views.filter((v) => v.status === 3).length;
     const seen = new Set();
     const pending = views.filter((v) => v.status !== 3);
     for (const v of views) seen.add(v.h5p_content_id);
@@ -137,9 +139,10 @@ async function scanIncomplete(token, opts = {}) {
         ? opts.detailImpl(token, v.h5p_content_id, opts)
         : fetchContentDetail(token, v.h5p_content_id, opts)
     ));
+    const out = [];
     pending.forEach((v, i) => {
       const detail = details[i];
-      parts.push({
+      out.push({
         cs: c.id, courseTitle: c.title, p: v.h5p_content_id, status: v.status,
         title: (detail && detail.title) || '', isFile: classify(detail, v.title),
         denied: !!(detail && detail.__denied), deniedMsg: (detail && detail.__error) || '',
@@ -155,13 +158,16 @@ async function scanIncomplete(token, opts = {}) {
         if (!id || seen.has(id)) continue;
         const v = views.find((x) => x.h5p_content_id === id);
         if (v && v.total_view > 0) continue; // đã mở (bấm nút mắt) -> coi như xong
-        parts.push({
+        out.push({
           cs: c.id, courseTitle: c.title, p: id, status: v ? v.status : 0,
           title: doc.title || '', isFile: true,
         });
       }
     }
-  }
+    return { done, out };
+  });
+  const parts = perCourse.flatMap((r) => r.out);
+  const doneParts = perCourse.reduce((a, r) => a + r.done, 0);
   logger(`📚 Khóa: ${courses.length} | chưa xong: ${parts.length} phần | đã xong sẵn: ${doneParts}`);
   return { courses: courses.length, parts, doneParts };
 }
@@ -177,7 +183,7 @@ async function scanIncomplete(token, opts = {}) {
 async function completeFiles(token, opts = {}) {
   const logger = opts.logger || (() => {});
   const sleep = opts.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const delayMs = opts.delayMs == null ? 500 : opts.delayMs;
+  const delayMs = opts.delayMs == null ? 300 : opts.delayMs;
 
   const { parts } = await scanIncomplete(token, opts);
   const fileParts = parts.filter((x) => x.isFile);
@@ -200,7 +206,7 @@ async function completeFiles(token, opts = {}) {
     const r = await markComplete(token, f.p, f.cs, logger, opts);
     if (r.ok) marked++; else failed++;
     items.push({ ...f, ok: r.ok, httpStatus: r.status });
-    if (i < files.length - 1) await sleep(delayMs + Math.floor(Math.random() * 400));
+    if (i < files.length - 1) await sleep(delayMs + Math.floor(Math.random() * 250));
   }
   logger(`\n✅ Đánh dấu xong: ${marked}/${files.length} file` + (failed ? ` (${failed} lỗi)` : ''));
   return { total: parts.length, files: files.length, marked, failed, skippedH5p, items };
