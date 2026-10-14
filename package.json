@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "auto": "node scripts/cli.js",
-    "test": "node tests/extract.test.js && node tests/book.test.js && node tests/doc.test.js && node tests/complete.test.js && node tests/auth-scan.test.js && node tests/solver-retry.test.js && node tests/solver-dom.test.js && node tests/interactiveVideo.test.js && node tests/flow.test.js",
+    "test": "node tests/extract.test.js && node tests/book.test.js && node tests/doc.test.js && node tests/complete.test.js && node tests/auth-scan.test.js && node tests/solver-retry.test.js && node tests/solver-dom.test.js && node tests/interactiveVideo.test.js && node tests/flow.test.js && node tests/preview.test.js",
     "test:auth-scan": "node tests/auth-scan.test.js",
     "test:flow": "node tests/flow.test.js",
     "test:retry": "node tests/solver-retry.test.js",

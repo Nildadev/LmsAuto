@@ -148,8 +148,8 @@ Render → **New → Web Service** → chọn repo → **Runtime: Docker** → *
 ### Lưu ý quan trọng với gói Free
 
 - **RAM chỉ 512MB.** Chromium rất ngốn RAM, nên image đã bật sẵn biến
-  `LMS_CHROMIUM_LOW_MEMORY=1` để thêm cờ tiết kiệm RAM (`--single-process`,
-  `--no-zygote`). Nếu Chromium chạy bất ổn (lỗi `newContext`, ảnh xem trước đen),
+  `LMS_CHROMIUM_LOW_MEMORY=1` để thêm cờ tiết kiệm RAM (không dùng
+  `--single-process` vì gây trắng/crash preview). Nếu Chromium chạy bất ổn,
   đặt biến này thành `0` trong tab **Environment** — đổi lại sẽ tốn RAM hơn.
 - **Ngủ sau 15 phút rảnh** → lần truy cập đầu sẽ chậm ~30–60 giây (cold start).
 - **750 giờ/tháng** — với 1 service thì gần như không đụng trần.

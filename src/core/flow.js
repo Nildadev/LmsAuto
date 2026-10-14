@@ -24,6 +24,7 @@ const { solveOne, pressCheck } = require('../h5p/solver');
 const { solveDoc } = require('../h5p/doc');
 const { markComplete } = require('../h5p/doc');
 const { scanIncomplete } = require('./complete');
+const { PreviewController } = require('./preview');
 
 // Chờ NGẮN sau khi goto rồi để findPlayerFrame tự poll (nó chờ tới 15s và trả
 // về ngay khi thấy player). Trước đây ngủ cứng 7s cho MỌI bài -> chậm vô ích.
@@ -80,7 +81,12 @@ async function openItem(page, url, logger, opts = {}, d = deps()) {
   const tab = d.newTab ? await d.newTab(page)
     : await page.context().newPage();
   d.currentTab = tab; // đánh dấu tab đang giải để WebUI chụp ảnh xem trước
+  // Đưa tab đang giải lên trước để cửa sổ headed HIỆN bài đang làm (trước đây
+  // tab mới mở nền, người dùng chỉ thấy tab chính trắng/trang chủ suốt phiên).
+  try { if (typeof tab.bringToFront === 'function') await tab.bringToFront(); } catch (_) {}
   await tab.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  // Sau goto SPA có thể chưa focus lại tab mới -> đưa lên trước lần nữa.
+  try { if (typeof tab.bringToFront === 'function') await tab.bringToFront(); } catch (_) {}
   await d.sleep(opts.waitMs || DEFAULT_WAIT_MS);
   await d.dismissAll(tab).catch(() => {});
   await d.sleep(600);
@@ -263,55 +269,28 @@ async function runFlow(opts = {}) {
     fetchImpl: opts.fetchImpl,
   });
 
-  // ── Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (ổn định — chỉ
-  // gửi frame khi trang vẽ lại, tự ack). Browser vẫn chạy ẩn trên host; WebUI chỉ
-  // nhận ảnh. KHÔNG ảnh hưởng CLI (capturePreview=false). Tự đổi nguồn khi chuyển
+  // ── Preview Moonlight-style: adaptive controller (src/core/preview.js) ──
+  //   dirty-frame dedup (chỉ gửi khi đổi) + latest-only/backpressure
+  //   + auto-bitrate 4 mức + metadata seq/fps/kbps cho OSD client.
+  // KHÔNG ảnh hưởng CLI (capturePreview=false). Tự đổi nguồn khi chuyển
   // tab (d.currentTab: tab đang giải) hoặc về trang chính.
   let previewTimer = null;
   let previewStop = async () => {};
+  let previewCtl = null;
   if (opts.capturePreview && typeof opts.onScreenshot === 'function') {
-    let client = null, boundPage = null, lastSent = 0;
-    const MIN_MS = 100; // cap ~10fps preview (đủ xem tiến độ, giảm mạnh tải)
-    const stop = async () => {
-      if (client) {
-        try { await client.send('Page.stopScreencast'); } catch (_) {}
-        try { await client.detach(); } catch (_) {}
-        client = null;
-      }
-      boundPage = null;
-    };
-    const bind = async (pg) => {
-      await stop();
-      if (!pg) return;
-      try {
-        client = await context.newCDPSession(pg);
-        client.on('Page.screencastFrame', async (f) => {
-          const now = Date.now();
-          // Chỉ GỬI cho client tối đa ~10fps (giảm băng thông + decode phía client).
-          if (now - lastSent >= MIN_MS) {
-            lastSent = now;
-            try { opts.onScreenshot('data:image/jpeg;base64,' + f.data); } catch (_) {}
-          }
-          // LƯU Ý: PHẢI ack MỌI frame — Chromium không gửi frame kế tiếp nếu frame
-          // trước chưa được ack (nếu bỏ ack -> preview đứng). Việc giảm CPU đến từ
-          // everyNthFrame + độ phân giải + quality bên dưới, không phải từ việc bỏ ack.
-          try { await client.send('Page.screencastFrameAck', { sessionId: f.sessionId }); } catch (_) {}
-        });
-        await client.send('Page.startScreencast', {
-          format: 'jpeg', quality: 35,
-          // Giảm độ phân giải preview (960×540) -> encode JPEG nhẹ hơn nhiều so với 1366×768.
-          maxWidth: 960, maxHeight: 540,
-          everyNthFrame: 3, // encode 1/3 số frame -> giảm ~3x tải CPU renderer
-        });
-        boundPage = pg;
-      } catch (_) { client = null; boundPage = null; }
-    };
-    previewStop = stop;
-    await bind(d.currentTab || page);
-    previewTimer = setInterval(() => {
-      const target = d.currentTab || page;
-      if (target !== boundPage) bind(target); // chuyển tab -> rebind
-    }, 700);
+    previewCtl = new PreviewController({
+      getTarget: () => d.currentTab || page,
+      newSession: (pg) => context.newCDPSession(pg),
+      level: opts.previewLevel || undefined, // undefined -> auto
+      onFrame: (f) => {
+        try { opts.onScreenshot(f); } catch (_) { return false; }
+        return true;
+      },
+      logger,
+    });
+    previewStop = () => previewCtl.stop();
+    await previewCtl.start(d.currentTab || page);
+    previewTimer = previewCtl.timer;
   }
 
   try {

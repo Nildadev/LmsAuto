@@ -3,7 +3,7 @@
  * book.js — Điểm vào (entry) cho solver "sách online" H5P.
  *
  * ⚠️ ĐÃ TÁI CẤU TRÚC THÀNH MODULE (xem src/h5p/book/). File này chỉ re-export
- * để giữ tương thích `require('../src/h5p/book')` cho code cũ (lib/automation.js).
+ * để giữ tương thích `require('../src/h5p/book')` cho code cũ.
  *
  * Các module con:
  *   book/index.js      điều phối chung (solveBook)

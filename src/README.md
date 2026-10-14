@@ -1,7 +1,7 @@
 # LmsAuto v2 — Core Solver (đã verify chạy thật)
 
 Đây là **lõi automation mới**, viết lại hoàn toàn từ dữ liệu đã reverse-engineer
-từ `lms360.vn` (xem `docs/H5P-ANSWER-MAP.md`). Khác bản cũ (`lib/automation.js`):
+từ `lms360.vn` (xem `docs/H5P-ANSWER-MAP.md`). Khác bản cũ trước đây:
 
 - Đọc **đáp án thật** từ `window.H5PIntegration.contents[].jsonContent` (không brute-force mù).
 - Chọn đúng **frame** chứa H5P player + đóng **modal Face ID**.

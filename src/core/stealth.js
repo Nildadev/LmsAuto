@@ -15,6 +15,12 @@ const { login } = require('./auth');
 
 const PROFILE_DIR = path.join(process.cwd(), '.profiles', 'lms360');
 
+// Trang mở sẵn trên tab chính để cửa sổ browser KHÔNG trắng tinh (about:blank).
+// Trước đây launch() chỉ newPage() mà không goto đâu cả -> chạy headed (CLI mặc
+// định, hoặc headlessMode=false trên web) người dùng thấy cửa sổ trắng xóa suốt
+// phiên (nhất là khi toàn bài file/doc không mở tab nào, hoặc lúc nghỉ giữa 2 bài).
+const HOME_URL = 'https://lms360.vn/';
+
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // Nghỉ ngắn giữa các hành động. Trước đây 120-520ms (trung bình ~320ms) cộng dồn
@@ -52,7 +58,9 @@ async function resolveToken(opts = {}) {
 
 /**
  * Khởi tạo browser + context giống người dùng VN.
- * @param {object} opts { headless, token, username, password, logger }
+ * @param {object} opts { headless, token, username, password, logger,
+ *                        homeUrl, homeTimeoutMs, skipHome }
+ *   skipHome=true: bỏ qua goto trang chủ (dùng cho test offline/mock page).
  * @returns {Promise<{browser, context, page, token}>}
  */
 async function launch(opts = {}) {
@@ -75,8 +83,9 @@ async function launch(opts = {}) {
   // launch + newContext — đã verify tạo đủ 2 frame và có đáp án.
   //
   // Bộ cờ tiết kiệm RAM cho host 512MB (Render free). Bật cờ "nặng" bằng
-  // env LMS_CHROMIUM_LOW_MEMORY=1 (Dockerfile đặt sẵn). Tắt đi nếu Chromium
-  // bất ổn (single-process đôi khi làm hỏng newContext/screencast).
+  // env LMS_CHROMIUM_LOW_MEMORY=1 (Dockerfile đặt sẵn).
+  // LƯU Ý: KHÔNG thêm --single-process vào đây — nó làm Chromium trắng tinh /
+  // crash với newContext + screencast (xem khối lowMemory bên dưới).
   const lowMemory = process.env.LMS_CHROMIUM_LOW_MEMORY === '1';
   const args = [
     '--disable-blink-features=AutomationControlled',
@@ -98,8 +107,10 @@ async function launch(opts = {}) {
     args.push('--disable-gpu', '--disable-software-rasterizer');
   }
   if (lowMemory) {
+    // LƯU Ý: KHÔNG dùng --single-process — cờ này khiến Chromium render trắng
+    // tinh / crash khi dùng newContext + CDP screencast (đã gặp thực tế: browser
+    // mở lên chỉ trắng xóa, không nội dung). Chỉ giữ cờ nhẹ, an toàn.
     args.push(
-      '--single-process',
       '--no-zygote',
       '--js-flags=--max-old-space-size=128',
     );
@@ -131,6 +142,22 @@ async function launch(opts = {}) {
   if (token) await context.addInitScript(injectTokenScript(token), injectTokenArg(token));
 
   const page = await context.newPage();
+  // Mở sẵn trang LMS trên tab CHÍNH để cửa sổ headed không trắng (about:blank).
+  // Token đã inject qua addInitScript nên trang này load ở trạng thái đăng nhập.
+  // Không đợi networkidle (SPA lms360 treo request) — domcontentloaded là đủ.
+  // Timeout mặc định 15s (không phải 30s) để máy offline không treo launch quá lâu.
+  // skipHome: test offline dùng page mock không có goto/bringToFront -> bỏ qua.
+  if (!opts.skipHome && page && typeof page.goto === 'function') {
+    try {
+      await page.goto(opts.homeUrl || HOME_URL, {
+        waitUntil: 'domcontentloaded',
+        timeout: opts.homeTimeoutMs || 15000,
+      });
+      // Cho SPA render khung trang rồi mới trả page về (không ngủ cứng khi test mock).
+      await sleep(1200);
+      if (typeof page.bringToFront === 'function') await page.bringToFront().catch(() => {});
+    } catch (_) { /* mở trang chủ thất bại -> vẫn trả page, flow sẽ goto từng bài */ }
+  }
   return { browser, context, page, token };
 }
 
@@ -183,4 +210,4 @@ async function humanScroll(page, px) {
   }
 }
 
-module.exports = { launch, resolveToken, humanClick, humanType, humanScroll, rand, sleep, humanDelay, PROFILE_DIR };
+module.exports = { launch, resolveToken, humanClick, humanType, humanScroll, rand, sleep, humanDelay, PROFILE_DIR, HOME_URL };

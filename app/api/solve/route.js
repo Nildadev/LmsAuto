@@ -65,6 +65,19 @@ export async function POST(request) {
         try { controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n')); } catch (_) { closed = true; }
       };
       const logger = (message) => send({ message });
+      // ── Hàng đợi frame latest-only (Moonlight-style) ──
+      // CDP đẩy frame nhanh hơn mạng -> chỉ giữ frame MỚI NHẤT, log đi kênh
+      // riêng nên không bao giờ bị frame chặn (head-of-line blocking).
+      let pendingFrame = null;
+      let frameFlushScheduled = false;
+      const flushFrame = () => {
+        frameFlushScheduled = false;
+        if (closed || !pendingFrame) return;
+        if (controller.desiredSize !== null && controller.desiredSize < 0) return; // client chậm -> giữ lại, thử ở frame sau (không phình buffer)
+        const f = pendingFrame;
+        pendingFrame = null;
+        send({ frame: f.data, seq: f.seq, ts: f.ts, q: f.level, fps: f.fps, kbps: f.kbps, w: f.width, h: f.height });
+      };
 
       // Client ngắt (đóng tab / điều hướng) -> ngừng gửi + yêu cầu runFlow dừng.
       const onAbort = () => { closed = true; };
@@ -72,8 +85,7 @@ export async function POST(request) {
 
       let slot = false;
       try {
-        // Dùng chung engine mới (src/core/flow.js) với CLI — thay vì lib/automation.js
-        // cũ đã lỗi thời. Map params từ web sang runFlow:
+        // Dùng chung engine mới (src/core/flow.js) với CLI. Map params từ web sang runFlow:
         //   headlessMode -> headless (true=ẩn, false=hiện browser)
         //   blacklistSubjects (mảng) -> RegExp tuỳ chỉnh; rỗng -> undefined (dùng mặc định)
         const subjects = Array.isArray(blacklistSubjects) ? blacklistSubjects : [];
@@ -99,12 +111,21 @@ export async function POST(request) {
           logger,
           // Client ngắt -> runFlow dừng giữa các bài + đóng browser (tránh rò rỉ).
           shouldStop: () => closed,
-          // Preview: stream ảnh trình duyệt ~30fps qua CDP screencast (browser headless trên host).
+          // Preview Moonlight-style: controller đẩy object frame {data,seq,ts,...}
+          // (tương thích ngược dataURL string từ bản cũ). Latest-only: frame mới
+          // ghi đè frame cũ, microtask flush 1 lần để log không bị chặn.
           capturePreview: true,
-          onScreenshot: (dataUrl) => {
-            // Backpressure: client đọc chậm -> bỏ frame để không phình bộ đệm.
-            if (controller.desiredSize !== null && controller.desiredSize < 0) return;
-            send({ screenshot: dataUrl });
+          onScreenshot: (f) => {
+            const frame = (f && typeof f === 'object')
+              ? f
+              : { data: String(f || '').replace(/^data:image\/\w+;base64,/, ''), seq: 0, ts: Date.now(), level: 'legacy', fps: 0, kbps: 0 };
+            if (!frame.data) return true;
+            pendingFrame = frame; // latest-only: bỏ frame cũ chưa kịp gửi
+            if (!frameFlushScheduled) {
+              frameFlushScheduled = true;
+              queueMicrotask(flushFrame);
+            }
+            return true;
           },
         });
 

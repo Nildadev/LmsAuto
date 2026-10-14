@@ -119,7 +119,9 @@ export default function Home() {
   const [stats, setStats]                   = useState({ total: 0, completed: 0, skipped: 0, errors: 0 });
   const logBoxRef     = useRef(null);
   const autoScrollRef = useRef(true);
-  const previewImgRef = useRef(null);
+  const previewCanvasRef = useRef(null);
+  const previewMetaRef = useRef({ seq: 0, fps: 0, kbps: 0, q: '', frames: 0, drops: 0 });
+  const [frameMeta, setFrameMeta] = useState({ fps: 0, kbps: 0, q: '', seq: 0 });
   const loadedRef     = useRef(false);
   // Trạng thái CUỐI của mỗi bài (key = subject|title) -> đếm KHÔNG trùng khi bài
   // được làm lại ở vòng quét lại (vòng 2 log "✅ Xong" lần nữa cho cùng 1 bài).
@@ -233,6 +235,57 @@ export default function Home() {
     if (skipM) setStats((p) => ({ ...p, skipped: parseInt(skipM[1]) }));
   };
 
+  /* Vẽ frame preview lên canvas kiểu Moonlight: ImageBitmap (decode ngoài main
+     thread) + rAF pacing + meta update tối đa 2 lần/giây. Bỏ seq cũ (latest-only). */
+  const drawFrame = (b64, meta) => {
+    const m = previewMetaRef.current;
+    if (meta && meta.seq && meta.seq <= m.seq) { m.drops++; return; } // frame cũ -> bỏ
+    const canvas = previewCanvasRef.current;
+    if (!canvas) return;
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'image/jpeg' });
+      const doDraw = (bmp) => {
+        requestAnimationFrame(() => {
+          try {
+            const cw = canvas.clientWidth || 960, ch = canvas.clientHeight || 540;
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            const W = Math.round(cw * dpr), H = Math.round(ch * dpr);
+            if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+            const ctx = canvas.getContext('2d');
+            // cover: phủ kín khung như Moonlight (không letterbox méo).
+            const s = Math.max(W / bmp.width, H / bmp.height);
+            const dw = bmp.width * s, dh = bmp.height * s;
+            ctx.drawImage(bmp, (W - dw) / 2, (H - dh) / 2, dw, dh);
+            if (bmp.close) bmp.close();
+          } catch { /* ignore */ }
+        });
+      };
+      if (meta && meta.seq) m.seq = meta.seq;
+      m.frames++;
+      if (meta) { m.fps = meta.fps || m.fps; m.kbps = meta.kbps || m.kbps; m.q = meta.q || m.q; }
+      // OSD cập nhật thưa (2Hz) để không re-render mỗi frame.
+      const now = Date.now();
+      if (!m.lastOsd || now - m.lastOsd > 500) {
+        m.lastOsd = now;
+        setFrameMeta({ fps: m.fps, kbps: m.kbps, q: m.q, seq: m.seq });
+      }
+      if (typeof createImageBitmap === 'function') createImageBitmap(blob).then(doDraw).catch(() => {
+        const img = new Image();
+        img.onload = () => doDraw(img);
+        img.src = URL.createObjectURL(blob);
+      });
+      else {
+        const img = new Image();
+        img.onload = () => doDraw(img);
+        img.src = URL.createObjectURL(blob);
+      }
+      setHasPreview(true);
+    } catch { /* frame hỏng -> bỏ */ }
+  };
+
   /* Start */
   const startAutomation = async (e) => {
     e.preventDefault();
@@ -240,7 +293,8 @@ export default function Home() {
     setIsRunning(true);
     setLogs([]);
     setHasPreview(false);
-    if (previewImgRef.current) previewImgRef.current.src = '';
+    previewMetaRef.current = { seq: 0, fps: 0, kbps: 0, q: '', frames: 0, drops: 0 };
+    setFrameMeta({ fps: 0, kbps: 0, q: '', seq: 0 });
     setCurrentItem('');
     statusRef.current.clear();
     currentKeyRef.current = '';
@@ -276,10 +330,10 @@ export default function Home() {
           try {
             const data = JSON.parse(line);
             if (data.message) addLog(data.message);
-            if (data.screenshot) {
-              // Cập nhật ảnh qua ref để không re-render mỗi frame (~30fps).
-              if (previewImgRef.current) previewImgRef.current.src = data.screenshot;
-              setHasPreview(true); // React bỏ qua nếu đã true
+            // Frame mới {frame,seq,ts,q,fps,kbps} — tương thích ngược {screenshot}.
+            const b64 = data.frame || (data.screenshot ? String(data.screenshot).replace(/^data:image\/\w+;base64,/, '') : '');
+            if (b64) {
+              drawFrame(b64, { seq: data.seq || 0, fps: data.fps || 0, kbps: data.kbps || 0, q: data.q || '' });
             }
             if (data.done) { addLog('🏁 Hoàn tất!'); setIsRunning(false); }
             if (data.error) { addLog(`❌ Lỗi: ${data.error}`); setIsRunning(false); }
@@ -368,16 +422,19 @@ export default function Home() {
                 </span>
               </div>
               <div className="relative w-full aspect-[1366/768] bg-surface-container flex items-center justify-center overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  ref={previewImgRef}
-                  alt="Xem trực tiếp"
-                  className={`w-full h-full object-contain ${hasPreview ? '' : 'hidden'}`}
+                <canvas
+                  ref={previewCanvasRef}
+                  className={`w-full h-full ${hasPreview ? '' : 'hidden'}`}
                 />
                 {!hasPreview && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl opacity-50">visibility_off</span>
                     <span className="text-[13px]">{isRunning ? 'Đang tải hình ảnh…' : 'Chưa có hình ảnh'}</span>
+                  </div>
+                )}
+                {hasPreview && (frameMeta.fps > 0 || frameMeta.kbps > 0) && (
+                  <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-black/55 text-white text-[11px] font-mono-label leading-none pointer-events-none select-none">
+                    {frameMeta.fps ? `${frameMeta.fps}fps ` : ''}{frameMeta.kbps ? `${frameMeta.kbps}kbps ` : ''}{frameMeta.q ? `· ${frameMeta.q}` : ''}
                   </div>
                 )}
               </div>
