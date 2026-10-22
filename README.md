@@ -76,7 +76,7 @@ npm install
 # 3. Cài trình duyệt chromium (chỉ làm 1 lần)
 npx playwright install chromium
 
-# 4. (tuỳ chọn) Chạy 230 unit test offline — không cần mạng
+# 4. (tuỳ chọn) Chạy 260 unit test offline — không cần mạng
 npm test
 ```
 

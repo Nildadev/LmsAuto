@@ -282,6 +282,25 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.items[0].title, 'Bài lớp');
   });
 
+  await checkAsync('runFlow: scanClass=false chỉ việc cần làm, quét lại KHÔNG kéo bài của lớp', async () => {
+    let scanN = 0;
+    const { d, calls } = fakeDeps({
+      todo: [{ title: 'Được giao', contentId: 'c1', p: 'PASSIGNED', cs: 'CS1' }],
+      parts: [{ cs: 'CS2', courseTitle: 'K lớp', p: 'PCLASS', status: 0, title: 'Bài lớp', isFile: false }],
+    });
+    d.scanAll = async () => {
+      scanN++;
+      return {
+        items: [], summary: { overdue: { total: 0 } }, studentName: 'HS Test',
+        todo: scanN === 1 ? [{ title: 'Được giao', subject: '', contentId: 'c1', p: 'PASSIGNED', cs: 'CS1' }] : [],
+      };
+    };
+    const rep = await runFlow({ token: 'T', scanClass: false, doAssigned: true, retryRounds: 2, logger: () => {}, deps: d });
+    assert.strictEqual(calls.scanIncomplete, 0, 'không quét lớp ở vòng đầu lẫn vòng quét lại');
+    assert.strictEqual(calls.solveBook, 1, 'chỉ giải bài được giao');
+    assert.strictEqual(rep.total, 1);
+  });
+
   await checkAsync('runFlow: doAssigned=true khử trùng bài theo p (không làm 2 lần)', async () => {
     const { d } = fakeDeps({
       todo: [{ title: 'Trùng', subject: 'Toán', contentId: 'c1', p: 'PSAME', cs: 'CS1' }],

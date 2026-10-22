@@ -54,6 +54,12 @@ export async function POST(request) {
     });
   }
   const { username, password, headlessMode, blacklistSubjects, scanClass, doAssigned } = payload || {};
+  if (scanClass === false && doAssigned !== true) {
+    return new Response(JSON.stringify({ error: 'Chọn ít nhất một nguồn bài: khóa học của lớp hoặc việc cần làm.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+  }
   const signal = request.signal;
 
   const encoder = new TextEncoder();

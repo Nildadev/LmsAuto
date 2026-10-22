@@ -140,9 +140,12 @@ export default function Home() {
       try {
         const s = JSON.parse(savedSettings);
         if (typeof s.headlessMode   === 'boolean') setHeadlessMode(s.headlessMode);
-        if (typeof s.scanClass      === 'boolean') setScanClass(s.scanClass);
-        if (typeof s.doAssigned     === 'boolean') setDoAssigned(s.doAssigned);
         if (typeof s.blacklistSubjects === 'string')    setBlacklistSubjects(s.blacklistSubjects);
+        // Luôn có ít nhất một nguồn bài (settings cũ có thể lưu cả hai = false).
+        const sc = typeof s.scanClass === 'boolean' ? s.scanClass : true;
+        const da = typeof s.doAssigned === 'boolean' ? s.doAssigned : false;
+        setScanClass(sc);
+        setDoAssigned(sc ? da : true);
       } catch { /* ignore */ }
     }
     loadedRef.current = true;
@@ -172,6 +175,18 @@ export default function Home() {
   }, [theme]);
 
   const cycleTheme = () => setTheme((t) => (t === 'system' ? 'light' : t === 'light' ? 'dark' : 'system'));
+
+  // Hai switch là hai NGUỒN bài; không cho tắt cả hai (sẽ không còn bài để làm).
+  const toggleScanClass = () => {
+    const next = !scanClass;
+    setScanClass(next);
+    if (!next && !doAssigned) setDoAssigned(true);
+  };
+  const toggleDoAssigned = () => {
+    const next = !doAssigned;
+    setDoAssigned(next);
+    if (!next && !scanClass) setScanClass(true);
+  };
 
   /* Auto-scroll log — CHỈ cuộn trong khung nhật ký, không cuộn cả trang.
      Chỉ tự cuộn khi người dùng đang ở gần cuối; nếu họ cuộn lên đọc thì giữ nguyên. */
@@ -488,8 +503,17 @@ export default function Home() {
 
                 <div className="pt-2 space-y-3 border-t border-outline">
                   <Switch label="Chạy ẩn (headless)" checked={headlessMode} onChange={() => setHeadlessMode(!headlessMode)} disabled={isRunning} hint="Trình duyệt chạy ẩn trên máy chủ; xem qua khung hình trực tiếp bên trái." />
-                  <Switch label="Quét cả lớp" checked={scanClass} onChange={() => setScanClass(!scanClass)} disabled={isRunning} hint="Quét toàn bộ khóa của lớp (mặc định). Tắt để chỉ dùng danh sách “việc cần làm”." />
-                  <Switch label="Làm bài cần làm" checked={doAssigned} onChange={() => setDoAssigned(!doAssigned)} disabled={isRunning} hint="Mặc định chỉ làm bài theo khóa học của lớp; bật để làm thêm bài trong “việc cần làm”." />
+                  <Switch label="Quét khóa học của lớp" checked={scanClass} onChange={toggleScanClass} disabled={isRunning} hint="Lấy mọi phần chưa hoàn thành trong các khóa của lớp." />
+                  <Switch
+                    label={scanClass ? 'Làm thêm bài được giao' : 'Chỉ làm bài được giao'}
+                    checked={doAssigned}
+                    onChange={toggleDoAssigned}
+                    disabled={isRunning}
+                    hint={scanClass
+                      ? 'Gộp thêm danh sách “việc cần làm”; tắt thì chỉ làm bài của lớp.'
+                      : 'Không quét khóa của lớp — chỉ dùng danh sách “việc cần làm”.'}
+                  />
+                  <p className="text-[11px] text-on-surface-variant/70">Luôn bật ít nhất một nguồn bài.</p>
                 </div>
 
                 <div>

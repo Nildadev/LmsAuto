@@ -438,18 +438,21 @@ async function runFlow(opts = {}) {
       const blacklist = opts.blacklist !== undefined ? opts.blacklist : d.DEFAULT_BLACKLIST;
       const out = [];
       const seen = new Set();
+      const includeClass = opts.parts || opts.scanClass !== false;
       try {
-        const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
-        for (const x of parts) {
-          if (x.denied) continue;                                 // riêng tư, không có quyền
-          if (opts.parts && x.isFile) continue;                   // parts mode: chỉ H5P
-          if (!opts.parts && blacklist && blacklist.test(`${x.courseTitle || ''} ${x.title || ''}`)) continue;
-          if (skippedLockedIds.has(x.p) || seen.has(x.p)) continue;
-          seen.add(x.p);
-          out.push({
-            title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
-            p: x.p, c: '', cs: x.cs, status: x.status, isFile: !!x.isFile,
-          });
+        if (includeClass) {
+          const { parts } = await d.scanIncomplete(token, { logger, fetchImpl: opts.fetchImpl, apiBase: opts.apiBase });
+          for (const x of parts) {
+            if (x.denied) continue;                                 // riêng tư, không có quyền
+            if (opts.parts && x.isFile) continue;                   // parts mode: chỉ H5P
+            if (!opts.parts && blacklist && blacklist.test(`${x.courseTitle || ''} ${x.title || ''}`)) continue;
+            if (skippedLockedIds.has(x.p) || seen.has(x.p)) continue;
+            seen.add(x.p);
+            out.push({
+              title: x.title || x.courseTitle || '(không rõ tên)', subject: '', courseTitle: x.courseTitle,
+              p: x.p, c: '', cs: x.cs, status: x.status, isFile: !!x.isFile,
+            });
+          }
         }
       } catch (e) { logger(`⚠️ Không quét lại được: ${String(e && e.message).slice(0, 120)}`); }
       // doAssigned: gộp thêm bài được giao còn chưa xong.

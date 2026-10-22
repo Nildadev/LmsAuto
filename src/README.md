@@ -77,7 +77,7 @@ npm install
 #    API hcm_login_v3 lấy JWT rồi inject vào localStorage['AccessToken'] + cookie.
 #    (Nếu muốn tái dùng token cũ: truyền {token: '<JWT>'}.)
 
-# 3. Unit test (không cần browser, không gọi mạng) — 259 test / 13 suite
+# 3. Unit test (không cần browser, không gọi mạng) — 260 test / 13 suite
 node tests/extract.test.js        # 26 (dữ liệu dump thật + stripHtml tag inline)
 node tests/book.test.js           # 26 (schema/question + MC ảnh + SCS reveal/done + solvePage)
 node tests/book-honesty.test.js   # 5  (cổng trung thực: còn sai/chưa xác minh -> không mark)
@@ -87,7 +87,7 @@ node tests/auth-scan.test.js      # 20 (login + scan, mock fetch)
 node tests/solver-retry.test.js   # 6  (vòng "Làm lại")
 node tests/solver-dom.test.js     # 22 (gộp truy vấn DOM + khớp đáp án sub/sup + không đoán)
 node tests/interactiveVideo.test.js # 47 (gom mốc, verdict, SCS scope, popup TF/MathML/ảnh, Blanks rỗng)
-node tests/flow.test.js           # 35 (orchestrator + parts mode + markDone + honesty gate)
+node tests/flow.test.js           # 36 (orchestrator + parts mode + markDone + honesty gate)
 node tests/questionset.test.js    # 15 (QuestionSet đứng riêng — xem mục Bug 15–18)
 node tests/census.test.js         # 25 (probe coverage: ảnh/YouTube/library lạ/random/unreadable)
 node tests/preview.test.js        # 4  (dedup / latest-only / backpressure)
@@ -275,7 +275,7 @@ riêng sách online có walker điều hướng ở `book.js`.
 - [x] Quét bài được giao qua `my_assigned_pending` (`src/core/scan.js`) → URL xem-video
 - [x] Unit test auth + scan (mock fetch) — 20/20 pass
 - [x] Flow đầy đủ đa bài: login → scan → skip solved/doc-only → solve (CP/IB/IV) → submit (`src/core/flow.js`, `npm run auto`)
-- [x] Unit test orchestrator (inject deps) — 35/35 pass
+- [x] Unit test orchestrator (inject deps) — 36/36 pass
 - [x] Debug live có kiểm soát (`scripts/debug-live.js`, 4 mức scan/census/solve/files —
       script tự đọc file secret, log chỉ in username đã che)
 - [x] Bỏ hẳn `/tmp/token.txt` khỏi script debug (dùng `scripts/_token.js` → `auth.login`)
@@ -309,7 +309,7 @@ riêng sách online có walker điều hướng ở `book.js`.
 | IV 1.26 "Tin học – Chủ đề B – Bài 3" | 43s, `unverified=2`, không mark | **53.7s, TF 1/1** (`ok=1 bad=0`), mark 200 | TrueFalse popup + xác nhận vỏ dialog Blanks rỗng + chờ seek trước khi bấm |
 | QuestionSet đứng riêng (8 câu KHTN) | 7/8 (1 câu đáp án ảnh bỏ qua) | **8/8, 37.7s** | khớp đáp án ảnh theo src |
 | Census toàn tài khoản (chỉ đọc) | chưa có | **624 khóa / 755 phần**, ~8–9s/bài | `debug-live.js census`, không ghi server |
-| Unit test offline | 223 | **259 / 13 suite, 0 fail** | thêm test SCS/TF/ảnh/`waitDialog`/honesty/census + review 2 |
+| Unit test offline | 223 | **260 / 13 suite, 0 fail** | thêm test SCS/TF/ảnh/`waitDialog`/honesty/census + review 2 |
 
 > Thời gian IV phụ thuộc độ dài video và vị trí mốc (bài Tin B3 có mốc ở 1086s);
 > phần tối ưu chính là bỏ các `sleep` cứng, gộp truy vấn DOM và chờ feedback
