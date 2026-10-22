@@ -8,13 +8,17 @@
     "build": "next build",
     "start": "next start",
     "auto": "node scripts/cli.js",
-    "test": "node tests/extract.test.js && node tests/book.test.js && node tests/doc.test.js && node tests/complete.test.js && node tests/auth-scan.test.js && node tests/solver-retry.test.js && node tests/solver-dom.test.js && node tests/interactiveVideo.test.js && node tests/flow.test.js && node tests/preview.test.js",
+    "test": "node tests/extract.test.js && node tests/book.test.js && node tests/book-honesty.test.js && node tests/doc.test.js && node tests/complete.test.js && node tests/auth-scan.test.js && node tests/solver-retry.test.js && node tests/solver-dom.test.js && node tests/interactiveVideo.test.js && node tests/flow.test.js && node tests/questionset.test.js && node tests/census.test.js && node tests/preview.test.js",
+    "test:qs": "node tests/questionset.test.js",
+    "test:census": "node tests/census.test.js",
     "test:auth-scan": "node tests/auth-scan.test.js",
     "test:flow": "node tests/flow.test.js",
     "test:retry": "node tests/solver-retry.test.js",
     "test:solver-dom": "node tests/solver-dom.test.js",
     "test:iv": "node tests/interactiveVideo.test.js",
-    "debug:solve": "node scripts/debug-solve.js"
+    "debug:solve": "node scripts/debug-solve.js",
+    "debug:live": "node scripts/debug-live.js",
+    "census": "node scripts/debug-live.js census"
   },
   "keywords": [
     "lms360",

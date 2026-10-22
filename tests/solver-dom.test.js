@@ -7,6 +7,7 @@
  */
 const assert = require('assert');
 const { solveChoice, solveBlanks, solveDrag, pressCheck, pressNext, retryAvailable } = require('../src/h5p/solver');
+const { stripHtml } = require('../src/h5p/extract');
 
 let passed = 0, failed = 0;
 async function check(name, fn) {
@@ -43,7 +44,22 @@ function fakeFrame(els = []) {
   });
   const loc = (sel) => ({
     count: async () => { calls.count++; return matched(sel).length; },
-    allInnerTexts: async () => { calls.allInnerTexts++; return matched(sel).map((e) => e.t); },
+    allInnerTexts: async () => { calls.allInnerTexts++; return matched(sel).map((e) => (e.inner == null ? e.t : e.inner)); },
+    evaluateAll: async (fn) => {
+      calls.evaluate++;
+      return fn(matched(sel).map((e) => ({
+        innerText: e.inner == null ? e.t : e.inner, textContent: e.t,
+        offsetWidth: 10, offsetHeight: 10, getClientRects: () => [{}],
+        // MathML giả: e.math = "25/f" -> 1 <mfrac> với 2 con text "25" và "f".
+        querySelector: (s) => (s === 'math' && e.math ? {
+          querySelectorAll: (q) => (q === 'mfrac'
+            ? e.math.split('|').map((part) => ({ children: part.split('/').map((x) => ({ textContent: x })) }))
+            : []),
+          textContent: e.math.replace(/[/|]/g, ''),
+        } : null),
+        querySelectorAll: (s) => (s === 'img' ? (e.imgs || []).map((src) => ({ getAttribute: () => src, src })) : []),
+      })));
+    },
     nth: (i) => { const m = matched(sel); return mkEl(`${sel}@${i}:${(m[i] || {}).t || ''}`); },
     first: () => mkEl(sel),
     click: async () => { calls.click++; clicked.push(sel); },
@@ -77,7 +93,7 @@ function fakeFrame(els = []) {
     assert.ok(f.clicked[0].includes('@1:Đáp án đúng'), `click đúng node visible #1 (nhận ${f.clicked[0]})`);
   });
 
-  await check('solveChoice: 1 lượt allInnerTexts, KHÔNG innerText/isVisible từng node', async () => {
+  await check('solveChoice: 1 lượt evaluateAll, KHÔNG innerText/isVisible từng node', async () => {
     const f = fakeFrame([
       { cls: 'h5p-answer', t: 'A', visible: true },
       { cls: 'h5p-answer', t: 'B', visible: true },
@@ -85,7 +101,8 @@ function fakeFrame(els = []) {
       { cls: 'h5p-answer', t: 'D', visible: true },
     ]);
     await solveChoice(f, { data: { correctTexts: ['C'] } }, () => {});
-    assert.strictEqual(f.calls.allInnerTexts, 1, 'text đọc 1 lượt cho cả 4 đáp án');
+    assert.strictEqual(f.calls.evaluate, 1, 'text đọc 1 lượt cho cả 4 đáp án');
+    assert.strictEqual(f.calls.allInnerTexts, 0, 'không đọc innerText riêng');
     assert.strictEqual(f.calls.innerText, 0, 'không innerText từng node');
     assert.strictEqual(f.calls.isVisible, 0, 'không isVisible từng node');
   });
@@ -189,6 +206,114 @@ function fakeFrame(els = []) {
     const f = fakeFrame([{ cls: 'button', t: 'Gửi', visible: true }]);
     assert.strictEqual(await retryAvailable(f), false);
     assert.strictEqual(f.clicked.length, 0);
+  });
+
+  await check('solveChoice: khớp được đáp án có chỉ số dưới (u = u1 = u2)', async () => {
+    // Regression debug live: JSON "u = u<sub>1</sub> = u<sub>2</sub>" từng bị tách
+    // thành "u = u 1 = u 2" -> exact/loose match đều trượt -> clicked 0, sai cả bài.
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'u = u1 + u2', visible: true },
+      { cls: 'h5p-answer', t: 'u = u1/u2', visible: true },
+      { cls: 'h5p-answer', t: 'u = u1.u2', visible: true },
+      { cls: 'h5p-answer', t: 'u = u1 = u2', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: [stripHtml('<p>u = u<sub>1</sub> = u<sub>2</sub></p>')] } }, () => {});
+    assert.strictEqual(r.solved, true, 'phải click được đáp án đúng');
+    assert.ok(f.clicked[0].includes('@3:u = u1 = u2'), `click đúng node #3 (nhận ${f.clicked[0]})`);
+  });
+
+  await check('solveChoice: đáp án là ẢNH -> khớp theo basename src (URL tuyệt đối vs tương đối)', async () => {
+    // Regression live 22/10/2026: câu 2 bài "Bài tập trắc nghiệm" có 4 đáp án là
+    // <img>; text rỗng nên solver cũ báo no-answers -> không click -> kẹt bài.
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: '', imgs: ['https://tech12h.com/sites/default/files/image_847.png'], visible: true },
+      { cls: 'h5p-answer', t: '', imgs: ['https://tech12h.com/sites/default/files/image_846.png?itok=abc'], visible: true },
+      { cls: 'h5p-answer', t: '', imgs: ['https://tech12h.com/sites/default/files/image_848.png'], visible: true },
+      { cls: 'h5p-answer', t: '', imgs: ['https://tech12h.com/sites/default/files/image_849.png'], visible: true },
+    ]);
+    const r = await solveChoice(f, { data: {
+      correctTexts: [],
+      correctImages: ['sites/default/files/image_846.png'],
+    } }, () => {});
+    assert.strictEqual(r.solved, true, 'phải click được đáp án ảnh đúng');
+    assert.deepStrictEqual(r.clicked, [1]);
+    assert.ok(f.clicked[0].includes('@1'), `click đúng node ảnh #1 (nhận ${f.clicked[0]})`);
+  });
+
+  await check('solveChoice: trộn text + ảnh -> click đủ cả hai đáp án đúng', async () => {
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'Đáp án chữ', visible: true },
+      { cls: 'h5p-answer', t: '', imgs: ['img/anh_dung.png'], visible: true },
+      { cls: 'h5p-answer', t: 'Sai', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: {
+      correctTexts: ['Đáp án chữ'],
+      correctImages: ['https://cdn.example.com/img/anh_dung.png'],
+    } }, () => {});
+    assert.strictEqual(r.solved, true);
+    assert.deepStrictEqual(r.clicked, [0, 1]);
+  });
+
+  await check('solveChoice: ảnh đúng KHÔNG có trong DOM -> không click bừa', async () => {
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: '', imgs: ['img/khac.png'], visible: true },
+      { cls: 'h5p-answer', t: 'Sai', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: [], correctImages: ['img/dung.png'] } }, () => {});
+    assert.strictEqual(r.solved, false);
+    assert.deepStrictEqual(r.clicked, []);
+  });
+
+  await check('solveChoice: MathML trùng text ("25f" vs phân số 25/f) -> chọn theo mathSig', async () => {
+    // Regression live 22/10/2026 (sách KHTN "Kính lúp"): randomAnswers=true đảo
+    // thứ tự; đáp án nhiễu "G = 25f." đứng trước phân số đúng 25/f -> khớp text
+    // chọn nhầm nhiễu, H5P chấm 0 điểm dù clicked 1.
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'G = 25f', visible: true, math: '' },
+      { cls: 'h5p-answer', t: 'G = 25f', visible: true, math: '25/f' },
+      { cls: 'h5p-answer', t: 'G = f25', visible: true, math: 'f/25' },
+      { cls: 'h5p-answer', t: 'G = 25 – f', visible: true, math: '' },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: ['G = 25f'], correctMath: ['25/f'] } }, () => {});
+    assert.strictEqual(r.solved, true);
+    assert.deepStrictEqual(r.clicked, [1], 'phải click node phân số, không phải nhiễu đứng trước');
+    assert.ok(f.clicked[0].includes('@1:G = 25f'), `click đúng node #1 (nhận ${f.clicked[0]})`);
+  });
+
+  await check('solveChoice: trùng text, KHÔNG có mathSig -> KHÔNG click (không đoán)', async () => {
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'A', visible: true },
+      { cls: 'h5p-answer', t: 'A', visible: true },
+      { cls: 'h5p-answer', t: 'B', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: ['A'] } }, () => {});
+    assert.strictEqual(r.solved, false, '2 đáp án giống nhau = nhập nhằng, không được báo solved');
+    assert.deepStrictEqual(r.clicked, [], 'không được chọn "đại" đáp án đầu');
+  });
+
+  await check('solveChoice: trùng text + mathSig KHÔNG khớp -> KHÔNG chọn "đại" node MathML', async () => {
+    // Trước đây fallback `find(sig !== '')` chọn node MathML bất kỳ dù chữ ký khác.
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'A', visible: true, math: '1/2' },
+      { cls: 'h5p-answer', t: 'A', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: ['A'], correctMath: ['3/4'] } }, () => {});
+    assert.strictEqual(r.solved, false);
+    assert.deepStrictEqual(r.clicked, []);
+  });
+
+  await check('solveChoice: innerText MathML trả 𝑓 (U+1D453) -> khớp bằng textContent', async () => {
+    // Live 22/10/2026: innerText của <mi>f</mi> là ký tự toán học "𝑓" nên
+    // normalize KHÔNG bằng "f" -> chỉ nhiễu "G = 25f." khớp và bị click.
+    // textContent vẫn là "f" -> phải dùng textContent để khớp.
+    const f = fakeFrame([
+      { cls: 'h5p-answer', t: 'G = 25f.', inner: 'G = 25f.', visible: true },
+      { cls: 'h5p-answer', t: 'G = 25f', inner: 'G = 25 𝑓', visible: true, math: '25/f' },
+      { cls: 'h5p-answer', t: 'G = 25 – f.', inner: 'G = 25 – f.', visible: true },
+    ]);
+    const r = await solveChoice(f, { data: { correctTexts: ['G = 25f'], correctMath: ['25/f'] } }, () => {});
+    assert.strictEqual(r.solved, true);
+    assert.deepStrictEqual(r.clicked, [1], 'phải click phân số (textContent "G = 25f")');
   });
 
   console.log(`\n${failed === 0 ? '✅' : '❌'} solver-dom: ${passed} passed, ${failed} failed`);

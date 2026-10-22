@@ -26,6 +26,7 @@
   - ✅ Tóm tắt, bộ câu hỏi
   - ✅ Bài học dạng sách / slide
   - ✅ Video bài giảng có câu hỏi xen giữa (tự dừng, trả lời, tiếp tục)
+  - ✅ Câu hỏi có **đáp án là ảnh** (khớp theo tên file ảnh, không đoán mò)
 - 📄 **Tự đánh dấu hoàn thành tài liệu đính kèm** — file pptx / pdf / doc / mp4… chỉ cần
   "xem" là xong, không cần mở từng cái
 - 🎓 **Làm lại các bài còn dở** — quét toàn bộ bài chưa xong trong khóa và hoàn thành nốt
@@ -73,6 +74,9 @@ npm install
 
 # 3. Cài trình duyệt chromium (chỉ làm 1 lần)
 npx playwright install chromium
+
+# 4. (tuỳ chọn) Chạy 230 unit test offline — không cần mạng
+npm test
 ```
 
 ---
@@ -89,10 +93,14 @@ Chương trình sẽ hỏi tài khoản và mật khẩu (mật khẩu được 
 Các tuỳ chọn thêm:
 
 ```bash
-npm run auto -- --dry-run     # Chỉ liệt kê bài, không làm
-npm run auto -- --limit=5     # Chỉ làm 5 bài đầu
-npm run auto -- --all         # Không lọc bớt môn phụ
-npm run auto -- --headless    # Chạy ẩn trình duyệt
+npm run auto -- --dry-run         # Chỉ liệt kê bài, không làm
+npm run auto -- --limit=5         # Chỉ làm 5 bài đầu
+npm run auto -- --all             # Không lọc bớt môn phụ
+npm run auto -- --headless        # Chạy ẩn trình duyệt
+npm run auto -- --do-assigned     # Làm THÊM bài trong mục "việc cần làm"
+                                  # (mặc định chỉ làm bài theo khóa học của lớp)
+npm run auto -- --retry-rounds=3  # Số vòng quét lại learn_status (mặc định 2)
+npm run auto -- --no-retry        # Không quét lại (= --retry-rounds=1)
 ```
 
 ### Cách 2 — Giao diện web
@@ -174,6 +182,17 @@ docker run -p 10000:10000 lmsauto   # mở http://localhost:10000
 - Hoạt động phụ thuộc vào giao diện của lms360.vn. Nếu trang thay đổi, có thể cần
   chỉnh lại một số thao tác.
 - Popup nhận diện khuôn mặt sẽ tự động bỏ qua (bấm "Để sau").
+- **Nguyên tắc "thà báo chưa xong còn hơn báo sai"**: chỉ khi mọi câu đều được xác
+  nhận đúng (hoặc thanh điểm 100%) bài mới bị đánh dấu hoàn thành. Trường hợp còn
+  lại báo `⚠️ Chưa xác nhận hoàn thành` và CLI thoát với mã lỗi (khác 0) để bạn làm tay.
+- Vài giới hạn còn tồn tại (đã ghi nhận khi chạy thật 22/10/2026):
+  - Video bài giảng dùng **YouTube** → không tua/ bắt dừng được → bỏ qua, báo FAIL.
+  - Tên học sinh có thể hiện `(không rõ)` vì API `my_assigned_pending` trả
+    `studentName` rỗng cho một số tài khoản (không ảnh hưởng việc giải bài).
+- Có thể khảo sát **toàn bộ bài đang nợ mà không giải** (chỉ đọc) để biết dạng bài,
+  câu đáp án ảnh, video YouTube, library chưa hỗ trợ…:
+  `node scripts/debug-live.js census --limit=20` (kết quả ghi vào
+  `docs/census-YYYY-MM-DD.json`).
 
 ---
 

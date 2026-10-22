@@ -17,7 +17,7 @@ const { sleep } = require('../../core/stealth');
 const { findBookFrame, readBook } = require('./read');
 const { parseBook } = require('./schema');
 const { cpPartCount, cpGoto, openInteractiveBook, ibPageState, ibNext, ibSubmit } = require('./navigate');
-const { solveElement } = require('./question');
+const { solveElement, solveSingleChoiceSet } = require('./question');
 const { solveVideo } = require('../interactiveVideo');
 const { readFeedback, pressCheckIn } = require('./dom');
 const { answerWithRetry, pressRetry, waitFeedback } = require('../solver');
@@ -25,6 +25,12 @@ const { answerWithRetry, pressRetry, waitFeedback } = require('../solver');
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 const QUESTION_KINDS = new Set(['choice', 'blanks', 'summary', 'dragquestion']);
+
+/** Số nội dung cần xác minh của 1 trang (câu hỏi trực tiếp + IV/CP lồng). */
+function pageQuestionCount(pg) {
+  return ((pg && pg.elements) || [])
+    .filter((e) => QUESTION_KINDS.has(e.kind) || e.kind === 'iv' || e.kind === 'cp').length;
+}
 
 const CONTAINER_SEL = '.h5p-question, .h5p-single-choice-set, .h5p-drag-text, .h5p-summary';
 
@@ -98,7 +104,7 @@ function probeNorm(s) {
  * Giải các container câu hỏi của MỘT trang.
  * KHỚP THEO NỘI DUNG: mỗi element JSON tìm container có text chứa probe
  * (thay vì zip theo thứ tự — vì trang có thể có text/media xen giữa).
- * @returns {{filled:number, good:number, wrong:number, details:Array}}
+ * @returns {{filled:number, good:number, wrong:number, unverified:number, details:Array}}
  */
 async function solvePage(frame, elements, logger) {
   const qElements = elements.filter((e) => QUESTION_KINDS.has(e.kind));
@@ -125,6 +131,10 @@ async function solvePage(frame, elements, logger) {
   const hasRealQ = popupEls.length > 0 || elements.some((e) => QUESTION_KINDS.has(e.kind));
   let popupFilled = 0;
   let popupButtons = 0;
+  let popupWrong = 0;
+  let popupSolvedEls = 0;
+  let popupUnverified = 0;
+  let popupDoneEls = 0;
   const popupUsed = new Set(); // elements đã giải qua popup
   if (hasRealQ) {
     // Chỉ nút trong CP đang HIỆN (trang IB trước đó ẩn).
@@ -152,7 +162,15 @@ async function solvePage(frame, elements, logger) {
             const r = await solveElement(frame, cont, el, logger).catch((e) => ({ err: String(e.message) }));
             await pressCheckIn(dlg, logger).catch(() => {});
             await sleep(450);
+            // Đọc feedback của popup: click xong KHÔNG đồng nghĩa đúng. Nếu dialog
+            // báo sai thì phải tính wrong, tránh mark_complete oan (lỗi live 22/10).
+            const fb = await readFeedback(dlg).catch(() => ({}));
+            const fbWrong = (fb && fb.wrong) || 0;
             popupFilled += (r && r.clicked) || (r && r.filled) || 0;
+            popupDoneEls++;
+            if (fbWrong > 0) popupWrong += fbWrong;
+            else if (r && r.solved) popupSolvedEls++;
+            else popupUnverified++;
           }
         } catch (e) { logger && logger(`    popup ${b} lỗi: ${String(e.message).slice(0, 50)}`); }
         const close = frame.locator('.h5p-popup-wrapper:visible .h5p-close, .h5p-dialog:visible .h5p-close, .h5p-close:visible, button[aria-label*="Đóng"]:visible, button[aria-label*="Close"]:visible').first();
@@ -166,24 +184,39 @@ async function solvePage(frame, elements, logger) {
       contInfo = await visibleContainersWithTexts(frame);
       containers = contInfo.locs;
       if (!containers.length) {
-        return { filled: popupFilled, good: popupFilled, wrong: 0, details: [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons }] };
+        // Element popup chưa xử lý được (dialog không mở/câu không giải) -> unverified.
+        const leftover = Math.max(0, qElements.length - popupDoneEls);
+        return {
+          filled: popupFilled, good: popupFilled, wrong: popupWrong,
+          unverified: popupUnverified + leftover,
+          details: [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons, solved: popupSolvedEls, wrong: popupWrong, unverified: popupUnverified + leftover }],
+        };
       }
       // fall-through để giải container thường, cộng dồn popupFilled ở cuối.
     }
   }
-  const details = popupFilled > 0 ? [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons }] : [];
-  let filled = popupFilled, good = popupFilled, wrong = 0;
+  const details = popupFilled > 0 ? [{ kind: 'cp-popup', filled: popupFilled, buttons: popupButtons, solved: popupSolvedEls, wrong: popupWrong }] : [];
+  let filled = popupFilled, good = popupFilled, wrong = popupWrong, unverified = popupUnverified;
 
   // InteractiveVideo lồng trong trang: delegate sang solveVideo (đã verify riêng).
   const ivEl = elements.find((e) => e.kind === 'iv');
   if (ivEl && await frame.locator('.h5p-interactive-video:visible').count().catch(() => 0)) {
     try {
       const ivRes = await solveVideo(frame, (m) => logger && logger(`  ${m}`), { params: ivEl.params });
-      details.push({ kind: 'iv', solved: ivRes.solved, total: ivRes.total });
+      details.push({ kind: 'iv', solved: ivRes.solved, total: ivRes.total, wrong: ivRes.wrong || 0, unverified: ivRes.unverified || 0 });
       filled += ivRes.solved; good += ivRes.solved;
+      wrong += ivRes.wrong || 0;
+      unverified += ivRes.unverified || 0;
       logger && logger(`  IV lồng: ${ivRes.solved}/${ivRes.total}`);
-    } catch (e) { logger && logger(`  IV lồng lỗi: ${String(e.message).slice(0, 60)}`); }
-    return { filled, good, wrong, details };
+    } catch (e) {
+      unverified += 1; // IV lỗi -> không xác minh được câu nào của nó
+      logger && logger(`  IV lồng lỗi: ${String(e.message).slice(0, 60)}`);
+    }
+    // Trang có CẢ IV lẫn câu hỏi thường: nhánh IV return sớm (như trước), nhưng
+    // các câu thường chưa giải phải tính unverified để không mark_complete oan.
+    // Trừ các câu đã giải qua popup, nếu không sẽ đếm trùng (unverified oan).
+    unverified += Math.max(0, qElements.length - popupDoneEls);
+    return { filled, good, wrong, unverified, details };
   }
 
   // CoursePresentation lồng trong trang IB: giải các slide CP (delegate).
@@ -194,14 +227,19 @@ async function solvePage(frame, elements, logger) {
     try {
       const sub = parseBook(cpEl.params) || { kind: 'coursepresentation', pages: [] };
       const cpRes = await solveCoursePresentation(frame.page(), frame, sub, (m) => logger && logger(`  ${m}`));
-      details.push({ kind: 'cp', solved: cpRes.solved, slides: cpRes.slides });
+      details.push({ kind: 'cp', solved: cpRes.solved, slides: cpRes.slides, wrong: cpRes.wrong || 0, unverified: cpRes.unverified || 0 });
       filled += cpRes.solved; good += cpRes.solved;
+      wrong += cpRes.wrong || 0;
+      unverified += cpRes.unverified || 0;
       logger && logger(`  CP lồng: ${cpRes.solved}/${cpRes.slides}`);
-    } catch (e) { logger && logger(`  CP lồng lỗi: ${String(e.message).slice(0, 60)}`); }
+    } catch (e) {
+      unverified += 1; // CP lỗi -> không xác minh được câu nào của nó
+      logger && logger(`  CP lồng lỗi: ${String(e.message).slice(0, 60)}`);
+    }
     // Nếu KHÔNG còn container câu hỏi nào khác -> xong trang.
     contInfo = await visibleContainersWithTexts(frame);
     containers = contInfo.locs;
-    if (!containers.length) return { filled, good, wrong, details };
+    if (!containers.length) return { filled, good, wrong, unverified, details };
     // Ngược lại: tiếp tục giải các container còn lại (bên dưới).
   }
 
@@ -235,27 +273,48 @@ async function solvePage(frame, elements, logger) {
     // container THƯỜNG đầu tiên chưa dùng -> trả lời NHẦM nội dung container đó.
     if (popupUsed.has(el)) { details.push({ k, kind: el.kind, base: el.base, note: 'solved-via-popup' }); continue; }
     const slot = findContainer(el);
-    if (!slot) { details.push({ k, kind: el.kind, base: el.base, note: 'no-container' }); continue; }
+    if (!slot) {
+      details.push({ k, kind: el.kind, base: el.base, note: 'no-container' });
+      unverified++; // câu hỏi có trong json nhưng không tìm thấy DOM -> chưa xác nhận
+      continue;
+    }
     const container = containers[slot.c];
-    // Trả lời + THỬ LẠI nếu sai (khi H5P cho phép "Làm lại"). Chỉ tính đúng khi
-    // wrong===0 && correct>0 -> tránh báo hoàn thành dù trả lời sai.
-    const rr = await answerWithRetry({
-      attempt: () => solveElement(frame, container, el, logger),
-      check: async () => { await pressCheckIn(container, logger).catch(() => {}); await waitFeedback(container, 1200); },
-      feedback: () => readFeedback(container),
-      retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(450); return ok; },
-      maxAttempts: 3,
-      logger,
-    }).catch((e) => ({ solved: false, correct: 0, wrong: 0, err: String(e.message) }));
+    // SingleChoiceSet tự chấm ngay khi click, KHÔNG có nút "Kiểm tra"/"Làm lại"
+    // và feedback không nằm ở .h5p-correct/.h5p-wrong -> answerWithRetry luôn ra
+    // 0/0 (unverified oan dù trả lời đúng). Dùng kết quả trả về của solver SCS.
+    const isScs = /SingleChoiceSet/i.test(el.base || '');
+    let rr;
+    if (isScs) {
+      const rs = await solveSingleChoiceSet(frame, container, { data: el.extracted || {} }, logger)
+        .catch((e) => ({ solved: false, err: String(e.message) }));
+      rr = { solved: !!(rs && rs.solved), correct: (rs && rs.correct) || 0, wrong: (rs && rs.wrong) || 0, attempts: 1 };
+    } else {
+      // Trả lời + THỬ LẠI nếu sai (khi H5P cho phép "Làm lại"). Chỉ tính đúng khi
+      // wrong===0 && correct>0 -> tránh báo hoàn thành dù trả lời sai.
+      rr = await answerWithRetry({
+        attempt: () => solveElement(frame, container, el, logger),
+        check: async () => { await pressCheckIn(container, logger).catch(() => {}); await waitFeedback(container, 1200); },
+        feedback: () => readFeedback(container),
+        retry: async () => { const ok = await pressRetry(container, logger); if (ok) await sleep(450); return ok; },
+        maxAttempts: 3,
+        logger,
+      }).catch((e) => ({ solved: false, correct: 0, wrong: 0, err: String(e.message) }));
+    }
     if (rr && rr.solved) filled++;
-    good += rr.correct || 0; wrong += rr.wrong || 0;
+    good += rr.correct || 0;
+    // Phân loại trung thực: có feedback SAI -> wrong; không feedback/không giải
+    // được -> unverified. Cả hai đều chặn mark_complete ở flow.
+    if (rr && !rr.solved) {
+      if ((rr.wrong || 0) > 0) wrong += rr.wrong;
+      else unverified++;
+    }
     details.push({ k, kind: el.kind, base: el.base, via: slot.via, solved: !!rr.solved, attempts: rr.attempts, correct: rr.correct, wrong: rr.wrong });
     await sleep(200);
   }
   for (let c = 0; c < containers.length; c++) {
     if (!used.has(c)) details.push({ k: 'extra', kind: 'dom-extra', note: containerTexts[c].slice(0, 60) });
   }
-  return { filled, good, wrong, details };
+  return { filled, good, wrong, unverified, details };
 }
 
 /** Giải CoursePresentation: lật từng slide bằng progressbar-part. */
@@ -266,6 +325,8 @@ async function solveCoursePresentation(page, frame, model, logger) {
   const totalQ = (model.pages || []).reduce((n, pg) => n + (((pg && pg.elements) || []).filter((e) => QUESTION_KINDS.has(e.kind)).length), 0);
   logger(`CP: ${total} phần (${model.pages.length} slide + Summary)${totalQ === 0 ? ' — không có câu hỏi (chỉ cần xem)' : ''}`);
   let solvedSlides = 0;
+  let wrong = 0;
+  let unverified = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
     const atSlide = await cpGoto(frame, i, logger);
@@ -274,18 +335,22 @@ async function solveCoursePresentation(page, frame, model, logger) {
     // chấm NHẦM sang câu của slide khác. Bỏ qua slide (không tính là đã giải).
     if (!atSlide) {
       logger(`  ⚠️ CP: không tới được slide ${i} -> bỏ qua (tránh giải nhầm slide)`);
-      details.push({ i, kind: 'goto-failed' });
+      const qn = pageQuestionCount(pg);
+      unverified += qn;
+      details.push({ i, kind: 'goto-failed', unverified: qn });
       continue;
     }
     if (!pg || !pg.elements.length) { details.push({ i, kind: 'none' }); continue; }
     const r = await solvePage(frame, pg.elements, logger);
     if (r.good > 0 && r.wrong === 0) solvedSlides++;
+    wrong += r.wrong || 0;
+    unverified += r.unverified || 0;
     details.push({ i, ...r });
-    logger(`  slide ${i}: filled=${r.filled} good=${r.good} wrong=${r.wrong}`);
+    logger(`  slide ${i}: filled=${r.filled} good=${r.good} wrong=${r.wrong} unverified=${r.unverified}`);
   }
   const finalScore = await readFinalScore(frame);
   logger(`CP done: ${solvedSlides}/${total} slide đúng | final=${JSON.stringify(finalScore)}`);
-  return { solved: solvedSlides, slides: total, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
+  return { solved: solvedSlides, slides: total, wrong, unverified, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
 }
 
 /** Giải InteractiveBook: mở sách, lật từng trang bằng "Trang tiếp theo". */
@@ -298,14 +363,18 @@ async function solveInteractiveBook(page, frame, model, logger) {
   const totalQ = (model.pages || []).reduce((n, pg) => n + (((pg && pg.elements) || []).filter((e) => QUESTION_KINDS.has(e.kind)).length), 0);
   logger(`IB: ${model.pages.length} chương, điều hướng ${total} trang${totalQ === 0 ? ' — không có câu hỏi (chỉ cần xem)' : ''}`);
   let solvedPages = 0;
+  let wrong = 0;
+  let unverified = 0;
   const details = [];
   for (let i = 0; i < total; i++) {
     const pg = model.pages[i];
     if (pg && pg.elements.length) {
       const r = await solvePage(frame, pg.elements, logger);
       if (r.good > 0 && r.wrong === 0) solvedPages++;
+      wrong += r.wrong || 0;
+      unverified += r.unverified || 0;
       details.push({ i, title: pg.title, ...r });
-      logger(`  trang ${i + 1}/${total} "${pg.title}": filled=${r.filled} good=${r.good} wrong=${r.wrong}`);
+      logger(`  trang ${i + 1}/${total} "${pg.title}": filled=${r.filled} good=${r.good} wrong=${r.wrong} unverified=${r.unverified}`);
     } else {
       details.push({ i, title: pg ? pg.title : 'Summary', kind: 'none' });
       logger(`  trang ${i + 1}/${total}: (không có câu hỏi)`);
@@ -315,7 +384,10 @@ async function solveInteractiveBook(page, frame, model, logger) {
       if (!advanced) {
         // Không bấm được "Trang tiếp theo" -> các trang sau không hiển thị; nếu
         // tiếp tục vòng lặp sẽ giải LẶP lại cùng 1 trang. Dừng điều hướng.
-        logger(`  ⚠️ IB: không sang được trang ${i + 2}/${total} -> dừng điều hướng`);
+        // Câu của các trang CHƯA tới được là chưa xác minh -> chặn mark_complete.
+        const restQ = (model.pages || []).slice(i + 1).reduce((n, p) => n + pageQuestionCount(p), 0);
+        unverified += restQ;
+        logger(`  ⚠️ IB: không sang được trang ${i + 2}/${total} -> dừng điều hướng (+${restQ} câu chưa xác minh)`);
         break;
       }
     }
@@ -324,7 +396,7 @@ async function solveInteractiveBook(page, frame, model, logger) {
   if (!submitted) logger('  ⚠️ IB: không tìm thấy nút "Tóm tắt & gửi" — chưa nộp được');
   const finalScore = await readFinalScore(frame);
   logger(`IB done: ${solvedPages}/${total} trang đúng | final=${JSON.stringify(finalScore)}`);
-  return { solved: solvedPages, slides: total, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
+  return { solved: solvedPages, slides: total, wrong, unverified, details, finalScore, kind: model.kind, noQuestions: totalQ === 0 };
 }
 
 /**

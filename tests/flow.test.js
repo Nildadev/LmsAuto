@@ -73,6 +73,13 @@ function fakeDeps(over = {}) {
     assert.strictEqual(rep.total, 2);
   });
 
+  await checkAsync('runFlow: only lọc theo tiêu đề, không phân biệt hoa/thường', async () => {
+    const { d } = fakeDeps({ todo: [{ title: 'A - trắc nghiệm', contentId: 'c1' }, { title: 'B - VIDEO', contentId: 'c2' }] });
+    const rep = await runFlow({ token: 'T', dryRun: true, doAssigned: true, only: 'video', logger: () => {}, deps: d });
+    assert.strictEqual(rep.total, 1);
+    assert.strictEqual(rep.items[0].title, 'B - VIDEO');
+  });
+
   await checkAsync('runFlow: giải hết, report solved + studentName', async () => {
     const { d, calls } = fakeDeps({ todo: [{ title: 'A', subject: 'Toán', contentId: 'c1', cs: 'CS1' }, { title: 'B', subject: 'Lý', contentId: 'c2', cs: 'CS1' }] });
     const rep = await runFlow({ token: 'T', doAssigned: true, retryRounds: 1, logger: () => {}, deps: d });
@@ -336,6 +343,22 @@ function fakeDeps(over = {}) {
     assert.strictEqual(calls.solveBook, 2, 'mặc định 2 vòng rồi dừng');
     assert.strictEqual(rep.failed, 1, 'khử trùng: vẫn chỉ 1 bài lỗi');
     assert.strictEqual(rep.total, 1);
+  });
+
+  // Review 2: vòng quét lại đọc TOÀN BỘ bài còn nợ; nếu không áp lại `only`
+  // thì debug 1 bài sẽ tự động mở cả loạt bài khác ở vòng 2.
+  await checkAsync('runFlow M7: only được áp LẠI ở vòng quét lại', async () => {
+    const { d, calls } = fakeDeps({ kind: 'book' });
+    d.scanIncomplete = async () => ({
+      courses: 1, doneParts: 0,
+      parts: [
+        { cs: 'CS1', courseTitle: 'K', p: 'P1', status: 0, title: 'Video A', isFile: false },
+        { cs: 'CS1', courseTitle: 'K', p: 'P2', status: 0, title: 'Khác B', isFile: false },
+      ],
+    });
+    d.solveBook = async () => { calls.solveBook++; return { solved: 0, finalScore: { bar: '50%' } }; };
+    await runFlow({ token: 'T', doAssigned: true, only: 'video', logger: () => {}, deps: d });
+    assert.strictEqual(calls.solveBook, 2, 'chỉ bài khớp "video" được chạy ở cả 2 vòng (không mở bài Khác B)');
   });
 
   await checkAsync('runFlow M7: retryRounds=1 -> KHÔNG quét lại', async () => {

@@ -20,7 +20,7 @@ const { extractAnswers } = require('../h5p/extract');
 const { solveBook } = require('../h5p/book');
 const { solveVideo } = require('../h5p/interactiveVideo');
 const { solveExerciseList } = require('../h5p/lessonList');
-const { solveOne, pressCheck } = require('../h5p/solver');
+const { solveOne, pressCheck, solveQuestionSet } = require('../h5p/solver');
 const { solveDoc } = require('../h5p/doc');
 const { markComplete } = require('../h5p/doc');
 const { scanIncomplete } = require('./complete');
@@ -29,6 +29,28 @@ const { PreviewController } = require('./preview');
 // Chờ NGẮN sau khi goto rồi để findPlayerFrame tự poll (nó chờ tới 15s và trả
 // về ngay khi thấy player). Trước đây ngủ cứng 7s cho MỌI bài -> chậm vô ích.
 const DEFAULT_WAIT_MS = 2500;
+
+/**
+ * Poll tới khi iframe H5P đã có H5PIntegration.contents (script H5P sẵn sàng).
+ * Trả sớm ngay khi thấy thay vì ngủ đủ 2500ms -> nhanh hơn ~1.5s/bài.
+ * Nếu trang chậm/không có H5P (bài lạ) thì vẫn chờ tối đa timeout như cũ.
+ */
+async function waitH5PReady(tab, timeoutMs, d = deps()) {
+  // Tab giả trong test offline không có frames() -> coi như trang đã sẵn sàng.
+  if (!tab || typeof tab.frames !== 'function') return false;
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    for (const f of tab.frames()) {
+      const ok = await f.evaluate(() => {
+        const c = (window.H5PIntegration && window.H5PIntegration.contents) || {};
+        return Object.keys(c).length > 0;
+      }).catch(() => false);
+      if (ok) return true;
+    }
+    await d.sleep(150);
+  }
+  return false;
+}
 
 /** true nếu thanh điểm đạt ~100%. `bar` là style.width (có thể "100%"/"100.00%"). */
 function barReached(finalScore) {
@@ -41,7 +63,7 @@ function deps(overrides = {}) {
   return {
     launch, sleep, scanAll, videoUrl, dismissAll, findPlayerFrame, solveBook, solveVideo,
     solveExerciseList,
-    solveOne, pressCheck, collectH5P, extractAnswers,
+    solveOne, pressCheck, solveQuestionSet, collectH5P, extractAnswers,
     solveSingle, newTab: null,
     solveDoc, detectKind, DEFAULT_BLACKLIST,
     markComplete, scanIncomplete,
@@ -87,9 +109,9 @@ async function openItem(page, url, logger, opts = {}, d = deps()) {
   await tab.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
   // Sau goto SPA có thể chưa focus lại tab mới -> đưa lên trước lần nữa.
   try { if (typeof tab.bringToFront === 'function') await tab.bringToFront(); } catch (_) {}
-  await d.sleep(opts.waitMs || DEFAULT_WAIT_MS);
+  await waitH5PReady(tab, opts.waitMs || DEFAULT_WAIT_MS, d);
   await d.dismissAll(tab).catch(() => {});
-  await d.sleep(600);
+  await d.sleep(200);
   const frame = await d.findPlayerFrame(tab, opts.frameTimeoutMs || 15000);
   return { tab, frame };
 }
@@ -113,6 +135,37 @@ async function solveSingle(page, frame, library, logger, d = deps()) {
   }).catch(() => null);
   if (!raw || !raw.json) { logger('  Single: không đọc được jsonContent'); return { solved: 0, kind: 'single' }; }
   const lib = library || raw.library;
+
+  // ── H5P.QuestionSet ĐỨNG RIÊNG (không lồng trong sách) ──
+  // jsonContent = { questions: [ {library, params}, ... ] }, DOM chỉ hiện TỪNG câu
+  // (phải bấm "Bắt đầu" rồi "Câu tiếp theo"). extractAnswers không có router cho
+  // QuestionSet -> nếu bỏ qua bước này bài bị báo "unknown" và KHÔNG giải.
+  const libBase = String(lib || '').replace(/\s+\d+\.\d+.*$/, '').trim();
+  if (/QuestionSet/.test(libBase) && Array.isArray(raw.json.questions) && raw.json.questions.length) {
+    const subs = raw.json.questions.map((q, i) => ({
+      index: i, library: q.library,
+      extracted: d.extractAnswers(q.library, { params: q.params }),
+    }));
+    logger(`  QuestionSet: ${subs.length} câu (đi bộ từng câu)`);
+    const qs = (await d.solveQuestionSet(frame, { kind: 'questionset', sub: subs, passPercentage: raw.json.passPercentage }, { logger, maxQuestions: subs.length })) || {};
+    const total = subs.length;
+    const attempted = qs.attempted || 0;
+    const correctCount = qs.correctCount || 0;
+    const bar = (qs.finalScore && (qs.finalScore.bar || qs.finalScore.barWidth)) || null;
+    const barFull = bar != null && parseFloat(bar) >= 99.5;
+    // Chính sách trung thực: câu sai -> wrong; đi chưa hết câu mà điểm cũng chưa
+    // 100% -> unverified. Cả hai khiến flow KHÔNG markComplete.
+    return {
+      solved: correctCount,
+      total,
+      wrong: Math.max(0, attempted - correctCount),
+      unverified: barFull || correctCount === total ? 0 : Math.max(0, total - attempted),
+      finalScore: { bar: bar != null ? String(bar) : null, ratio: qs.finalScore && qs.finalScore.ratio },
+      kind: 'single',
+      library: lib,
+    };
+  }
+
   const data = d.extractAnswers(lib, { params: (raw.json.params || raw.json) });
   logger(`  Single ${lib} => ${data ? data.kind : 'unknown'}`);
   if (!data || data.kind === 'unknown') {
@@ -354,7 +407,14 @@ async function runFlow(opts = {}) {
       logger(`📋 Tổng cần giải: ${todo.length} bài`);
     }
     report.summary = summary;
-    let list = opts.limit ? todo.slice(0, opts.limit) : todo;
+    let list = todo;
+    // `only`: lọc theo tiêu đề để debug đúng 1 bài (không phân biệt hoa/thường).
+    if (opts.only) {
+      const q = String(opts.only).toLowerCase();
+      list = list.filter((it) => `${it.title || ''} ${it.courseTitle || ''}`.toLowerCase().includes(q));
+      logger(`🎯 Chỉ làm bài khớp "${opts.only}": ${list.length}/${todo.length}`);
+    }
+    if (opts.limit) list = list.slice(0, opts.limit);
 
     if (opts.dryRun) {
       logger('\n📋 (dry-run) Danh sách bài sẽ giải:');
@@ -415,11 +475,16 @@ async function runFlow(opts = {}) {
       if (round > 0) {
         // Quét lại cuối phiên: bài nào còn status≠3 thì đưa lại hàng đợi làm tiếp.
         const remain = await rescanRemaining();
-        logger(`\n🔁 Vòng ${round + 1}: còn ${remain.length} bài chưa xong — làm lại…`);
-        if (!remain.length) { logger('🔁 Đã xong hết — dừng quét lại.'); break; }
-        if (remain.length >= prevRemain) { logger('🔁 Không tiến triển -> dừng quét lại.'); break; }
-        prevRemain = remain.length;
-        list = opts.limit ? remain.slice(0, opts.limit) : remain;
+        // Áp LẠI `only`: vòng quét lại đọc toàn bộ bài còn nợ, nếu không sẽ mở
+        // cả những bài người dùng không yêu cầu (debug 1 bài thành chạy cả loạt).
+        const targets = opts.only
+          ? remain.filter((it) => `${it.title || ''} ${it.courseTitle || ''}`.toLowerCase().includes(String(opts.only).toLowerCase()))
+          : remain;
+        logger(`\n🔁 Vòng ${round + 1}: còn ${targets.length} bài${opts.only ? ' khớp bộ lọc' : ''} chưa xong — làm lại…`);
+        if (!targets.length) { logger('🔁 Không còn bài khớp bộ lọc — dừng quét lại.'); break; }
+        if (targets.length >= prevRemain) { logger('🔁 Không tiến triển -> dừng quét lại.'); break; }
+        prevRemain = targets.length;
+        list = opts.limit ? targets.slice(0, opts.limit) : targets;
       }
       for (let i = 0; i < list.length; i++) {
         if (stopRequested()) { logger('⏹️ Dừng theo yêu cầu (client ngắt kết nối).'); break; }

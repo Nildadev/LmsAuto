@@ -4,6 +4,7 @@
  * Thuần logic (không cần browser). Đã reverse-engineer từ lms360.vn.
  * Xem docs/H5P-ANSWER-MAP.md để biết nguồn gốc từng field.
  */
+const { mathSig } = require('./mathSig');
 
 /** Parse an toàn: chấp nhận string JSON hoặc object. */
 function parseJson(v) {
@@ -58,12 +59,32 @@ function deburr(s) {
     .replace(/\u0111/g, 'd').replace(/\u0110/g, 'D'); // đ/Đ
 }
 
-/** Bỏ tag HTML, giải entity, gộp khoảng trắng. */
+/** Tag cấp KHỐI: thay bằng dấu cách (giữ ranh giới câu/từ). */
+const BLOCK_TAGS = /<\/?(?:p|div|br|li|ul|ol|dl|dt|dd|tr|td|th|table|thead|tbody|h[1-6]|blockquote|pre|section|article)\b[^>]*>/gi;
+
+/** Bỏ tag HTML, giải entity, gộp khoảng trắng.
+ *  Tag NỘI DONG (sub/sup/span/b/i/a/…) bị xoá SÁT, KHÔNG chèn dấu cách:
+ *  DOM innerText của "u = u<sub>1</sub>" là "u = u1" — nếu chèn space sẽ thành
+ *  "u = u 1" -> khớp text với đáp án thất bại, solver click 0 đáp án (bug live). */
 function stripHtml(s) {
   if (s == null) return '';
   return decodeEntities(
-    String(s).replace(/<[^>]*>/g, ' ')
+    String(s).replace(BLOCK_TAGS, ' ').replace(/<[^>]*>/g, '')
   ).replace(/\s+/g, ' ').trim();
+}
+
+/** Danh sách src ảnh trong HTML (giữ URL gốc, đã giải entity). Dùng để khớp
+ *  đáp án là ẢNH — stripHtml của chúng rỗng nên không thể so theo text. */
+function imgSrcs(html) {
+  const out = [];
+  if (html == null) return out;
+  const re = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+  let m;
+  while ((m = re.exec(String(html))) !== null) {
+    const s = decodeEntities(m[1] != null ? m[1] : m[2] != null ? m[2] : m[3] || '').trim();
+    if (s) out.push(s);
+  }
+  return out;
 }
 
 // ── MultiChoice / SingleChoiceSet / TrueFalse ────────────────────────────
@@ -71,11 +92,33 @@ function extractChoice(params) {
   const answers = params.answers || [];
   const correctIdx = [];
   answers.forEach((a, i) => { if (isCorrectFlag(a)) correctIdx.push(i); });
+  const texts = correctIdx.map(i => stripHtml(answers[i] && answers[i].text));
+  // Ảnh trong text HTML: đáp án là ảnh có stripHtml rỗng, phải khớp theo src.
+  const images = answers.map(a => imgSrcs(a && a.text));
+  // MathML: "25/f" và "25f" cùng stripHtml -> cần chữ ký cấu trúc để khỏi nhầm.
+  const maths = answers.map(a => mathSig(a && a.text));
+  const correctTexts = [];
+  const correctMath = [];
+  correctIdx.forEach((i, j) => {
+    if (!texts[j]) return;
+    correctTexts.push(texts[j]);
+    correctMath.push(maths[i] || '');
+  });
   return {
     kind: 'choice',
+    // `question` dùng để KHỚP câu hỏi trên DOM với câu trong json (QuestionSet có
+    // randomQuestions -> thứ tự DOM ≠ thứ tự json).
+    question: stripHtml(params.question),
     options: answers.map(a => stripHtml(a && a.text)),
+    // song song với options: src ảnh / chữ ký MathML của từng đáp án.
+    images,
+    math: maths,
     correctIndexes: correctIdx,
-    correctTexts: correctIdx.map(i => stripHtml(answers[i] && answers[i].text)),
+    // Đáp án đúng dạng ẢNH (real data: image_846.png) — solver khớp theo basename.
+    correctImages: correctIdx.flatMap(i => images[i]),
+    // LỌC rỗng: text rỗng nghĩa là đáp án ảnh, không khớp được theo text.
+    correctTexts,
+    correctMath,
   };
 }
 
@@ -125,7 +168,7 @@ function extractBlanks(params) {
       }
     }
   }
-  return { kind: 'blanks', answers };
+  return { kind: 'blanks', answers, question: stripHtml(params.question) };
 }
 
 // ── DragQuestion (kéo thả) ───────────────────────────────────────────────
@@ -151,15 +194,30 @@ function extractDragQuestion(params) {
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────
+/**
+ * `rows` phẳng: mỗi dòng là 1 phát biểu {subContentId, text, correct}.
+ * Dữ liệu THẬT trên lms360: `summaries[].summary` là MẢNG CHUỖI HTML và phần
+ * tử ĐẦU TIÊN là câu đúng (giống SingleChoiceSet). Dạng cũ
+ * `subContents[].correctText/incorrectText` vẫn được đọc để không hồi quy.
+ */
 function extractSummary(params) {
   const out = [];
   (params.summaries || []).forEach((sum) => {
-    (sum.subContents || []).forEach((sc) => {
-      out.push({
-        subContentId: sc.subContentId,
-        correctText: stripHtml(sc.correctText || ''),
-        incorrectText: stripHtml(sc.incorrectText || ''),
+    if (!sum) return;
+    const subContentId = sum.subContentId;
+    if (Array.isArray(sum.summary) && sum.summary.length) {
+      sum.summary.forEach((s, idx) => {
+        const text = stripHtml(typeof s === 'string' ? s : (s && (s.text || s.summary)) || '');
+        if (text) out.push({ subContentId, text, correct: idx === 0 });
       });
+      return;
+    }
+    (sum.subContents || []).forEach((sc) => {
+      if (!sc) return;
+      const correctText = stripHtml(sc.correctText || '');
+      const incorrectText = stripHtml(sc.incorrectText || '');
+      if (correctText) out.push({ subContentId: sc.subContentId, text: correctText, correct: true });
+      if (incorrectText) out.push({ subContentId: sc.subContentId, text: incorrectText, correct: false });
     });
   });
   return { kind: 'summary', rows: out };
@@ -174,7 +232,7 @@ function extractSpeakGuess(params) {
   return { kind: 'speakguess', answers: correct };
 }
 
-// ── SingleChoiceSet (params.choices[].answers[].correct) ─────────────────
+// ── SingleChoiceSet (params.choices[].answers) ───────────────────────────
 /** `correct` có thể là boolean true hoặc chuỗi "true"; "false" KHÔNG được coi là đúng. */
 const isCorrectFlag = (a) => !!a && (a.correct === true || a.correct === 'true');
 
@@ -182,16 +240,27 @@ function extractSingleChoiceSet(params) {
   const choices = params.choices || [];
   const out = choices.map((ch) => {
     const answers = ch.answers || ch.alternatives || [];
-    return {
-      question: stripHtml(ch.question || ''),
-      answers: answers.map((a) => ({ text: stripHtml(a && a.text), correct: isCorrectFlag(a) })),
-    };
+    const mapped = answers.map((a, idx) => {
+      // Dữ liệu THẬT trên lms360: `answers` là mảng CHUỖI HTML và H5P quy ước
+      // phần tử ĐẦU TIÊN là đáp án đúng (không có field `correct`). Trước đây đọc
+      // a.text/a.correct như object -> correctTexts rỗng -> IV không khớp được đáp
+      // án, click trượt, bài báo sai (bug live 22/10/2026).
+      const html = typeof a === 'string' ? a : (a && a.text);
+      return { text: stripHtml(html), images: imgSrcs(html), math: mathSig(html), correct: typeof a === 'string' ? idx === 0 : isCorrectFlag(a) };
+    });
+    return { question: stripHtml(ch.question || ''), answers: mapped };
   });
   const correctTexts = [];
-  out.forEach((ch) => ch.answers.forEach((a) => { if (a.correct) correctTexts.push(a.text); }));
+  const correctImages = [];
+  const correctMath = [];
+  out.forEach((ch) => ch.answers.forEach((a) => {
+    if (!a.correct) return;
+    if (a.text) { correctTexts.push(a.text); correctMath.push(a.math || ''); }
+    correctImages.push(...(a.images || []));
+  }));
   // KHÔNG bịa đáp án khi không có correct: để trống -> solver sẽ dừng thay vì
   // click bừa (H5P chấm điểm ngay khi click nên click bừa = ghi nhận câu SAI).
-  return { kind: 'choice', choices: out, correctTexts, options: out.flatMap((ch) => ch.answers.map((a) => a.text)) };
+  return { kind: 'choice', choices: out, correctTexts, correctImages, correctMath, options: out.flatMap((ch) => ch.answers.map((a) => a.text)) };
 }
 
 // ── Router theo library ──────────────────────────────────────────────────

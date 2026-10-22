@@ -8,6 +8,7 @@
  */
 const { humanClick, humanDelay, sleep } = require('../core/stealth');
 const { deburr } = require('./extract');
+const { browserMathSigs } = require('./mathSig');
 
 /** Chuẩn hoá text để khớp: bỏ tag/entity, gộp khoảng trắng, bỏ dấu cách lạ, lowercase. */
 function normalizeText(s) {
@@ -20,6 +21,14 @@ function normalizeText(s) {
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
+}
+
+/** Khoá so khớp ảnh: basename, bỏ query/hash, lowercase. JSON có thể ghi URL
+ *  tuyệt đối còn DOM trả src tương đối (hoặc ngược lại) -> basename là mức ổn định. */
+function imgKey(src) {
+  const bare = String(src || '').trim().split(/[?#]/)[0].replace(/\\/g, '/');
+  const base = bare.slice(bare.lastIndexOf('/') + 1) || bare;
+  try { return decodeURIComponent(base).toLowerCase(); } catch (_) { return base.toLowerCase(); }
 }
 
 /** Đợi selector trong frame, trả về locator hoặc null. */
@@ -40,35 +49,85 @@ async function solveChoice(frame, extracted, logger) {
   if (!hasAnswer && !(await frame.locator(baseSel).count().catch(() => 0))) {
     return { solved: false, reason: 'no-answer-nodes' };
   }
-  // Lấy text của các đáp án ĐANG HIỆN trong MỘT lượt (allInnerTexts) thay vì
-  // isVisible()+innerText() cho TỪNG đáp án (trước đây 2 round-trip/đáp án).
+  // Lấy text trong MỘT lượt evaluateAll, ưu tiên textContent khi KHỚP đáp án:
+  // innerText của MathML trả ký tự toán học ("𝑓" U+1D453) còn textContent trả
+  // "f" — dùng innerText sẽ không khớp đáp án phân số và click nhầm nhiễu
+  // (bug live 22/10/2026). Vẫn giữ innerText làm fallback cho nội dung thường.
   const visLoc = frame.locator(`${baseSel}:visible`);
-  const rawTexts = await visLoc.allInnerTexts().catch(() => []);
-  if (!rawTexts.length) return { solved: false, reason: 'no-visible-answer' };
-  const visible = rawTexts.map((t, i) => ({ i, t: normalizeText(t) }));
+  const textsInfo = await visLoc.evaluateAll((els) => els.map((el) => ({
+    inner: el.innerText || '',
+    text: el.textContent || '',
+  }))).catch(() => []);
+  if (!textsInfo.length) return { solved: false, reason: 'no-visible-answer' };
+  const visible = textsInfo.map((x, i) => ({
+    i, t: normalizeText(x.text || x.inner), inner: normalizeText(x.inner),
+  }));
 
-  const want = (extracted.data && extracted.data.correctTexts || []).map(normalizeText);
+  // Đáp án đúng có thể là TEXT, ẢNH, hoặc cả hai. Text rỗng (đáp án ảnh) không
+  // được đem đi so text — phải khớp theo src ảnh, nếu không solver báo no-answers
+  // và bài có câu trả lời bằng hình không bao giờ hoàn thành (bug live 22/10/2026).
+  // `sig`: chữ ký MathML để phân biệt các đáp án cùng text ("25/f" vs "25f").
+  const textPairs = (extracted.data && extracted.data.correctTexts || [])
+    .map((t, i) => ({ w: normalizeText(t), sig: ((extracted.data && extracted.data.correctMath) || [])[i] || '' }))
+    .filter((p) => p.w);
+  const want = textPairs.map((p) => p.w);
+  const wantImgs = (extracted.data && extracted.data.correctImages || []).map(imgKey).filter(Boolean);
+
+  if (!want.length && !wantImgs.length) {
+    // Không trích được đáp án -> KHÔNG đoán (H5P chấm điểm ngay khi click).
+    logger && logger(`choice: không có đáp án trích được -> bỏ qua (visible=${JSON.stringify(visible.map(v => v.t))})`);
+    return { solved: false, reason: 'no-answers', visible: visible.map(v => v.t) };
+  }
 
   const toClick = [];
   if (want.length) {
     // QUAN TRỌNG: khớp CHÍNH XÁC trước (tránh "unfortunately" chứa "fortunately").
     // Nếu không có exact match, mới xét đến khớp gần (khoảng trắng lạ).
-    const exactHit = (w) => visible.find(v => v.t === w);
     const looseHit = (w) => {
       // CHỈ khớp gần khi CẢ HAI chuỗi đủ dài (>=4 ký tự): muốn "5" khớp "15",
       // "Đúng" khớp "Đúng rồi" là do substring quá ngắn, không phải khớp gần.
-      const cand = visible.filter(v => v.t.length >= 4 && w.length >= 4 && Math.abs(v.t.length - w.length) <= 2);
-      return cand.find(v => v.t.includes(w) || w.includes(v.t));
+      // Nhiều ứng viên = nhập nhằng -> KHÔNG chọn (không đoán).
+      const near = (key) => visible
+        .filter(v => v[key].length >= 4 && w.length >= 4 && Math.abs(v[key].length - w.length) <= 2)
+        .filter(v => v[key].includes(w) || w.includes(v[key]));
+      const cand = near('t').length ? near('t') : near('inner');
+      return cand.length === 1 ? cand[0] : null;
     };
-    want.forEach(w => {
-      const found = exactHit(w) || looseHit(w);
-      if (found) toClick.push(found.i);
+    // Khớp CHÍNH XÁC theo textContent trước; chỉ khi không có mới dùng innerText
+    // (nội dung thường 2 nguồn như nhau, MathML thì textContent mới đúng).
+    const hitsOf = (w) => {
+      const byText = visible.filter(v => v.t === w);
+      return byText.length ? byText : visible.filter(v => v.inner === w);
+    };
+    let mathSigs = null; // chỉ đọc DOM 1 lần, và chỉ khi có text bị trùng
+    const getMathSigs = async () => {
+      if (!mathSigs) mathSigs = await visLoc.evaluateAll(browserMathSigs).catch(() => []);
+      return mathSigs;
+    };
+    for (const { w, sig } of textPairs) {
+      const hits = hitsOf(w);
+      let found = null;
+      if (hits.length === 1) found = hits[0];
+      else if (hits.length > 1 && sig) {
+        // randomAnswers=true -> không dùng index; phân biệt bằng cấu trúc MathML.
+        const sigs = await getMathSigs();
+        found = hits.find((v) => (sigs[v.i] || '') === sig) || null;
+      }
+      // Nhiều đáp án cùng text mà không có chữ ký MathML khớp -> nhập nhằng,
+      // KHÔNG chọn "đại" (H5P chấm ngay khi click -> có thể ghi điểm SAI).
+      if (!found) found = looseHit(w);
+      if (found && !toClick.includes(found.i)) toClick.push(found.i);
+    }
+  }
+  if (wantImgs.length) {
+    // Một lượt đọc src ảnh của các node đang hiện (chỉ khi câu có đáp án ảnh).
+    const nodeImgs = await visLoc.evaluateAll((els) => els.map((el) => (
+      [...el.querySelectorAll('img')].map((im) => im.getAttribute('src') || im.src || '')
+    ))).catch(() => []);
+    wantImgs.forEach((w) => {
+      const hit = nodeImgs.findIndex((list) => (list || []).some((src) => imgKey(src) === w));
+      if (hit >= 0 && !toClick.includes(hit)) toClick.push(hit);
     });
-  } else {
-    // Không trích được đáp án -> KHÔNG đoán (trước đây click hết/cái đầu rồi báo
-    // solved -> bài được tính xong dù trả lời sai).
-    logger && logger(`choice: không có đáp án trích được -> bỏ qua (visible=${JSON.stringify(visible.map(v => v.t))})`);
-    return { solved: false, reason: 'no-answers', visible: visible.map(v => v.t) };
   }
 
   const clicked = [];
@@ -79,8 +138,8 @@ async function solveChoice(frame, extracted, logger) {
       clicked.push(i);
     }
   }
-  logger && logger(`choice: clicked ${clicked.length} (want=${JSON.stringify(want)} visible=${JSON.stringify(visible.map(v => v.t))})`);
-  return { solved: clicked.length > 0, clicked, want };
+  logger && logger(`choice: clicked ${clicked.length} (want=${JSON.stringify(want)} imgs=${JSON.stringify(wantImgs)} visible=${JSON.stringify(visible.map(v => v.t))})`);
+  return { solved: clicked.length > 0, clicked, want, wantImgs };
 }
 
 /** Giải Blanks: điền text đáp án vào input theo thứ tự. */
@@ -323,13 +382,24 @@ async function pressNext(frame, logger) {
   return false;
 }
 
+/** Bấm nút BẮT ĐẦU của QuestionSet/SingleChoiceSet (màn "Let's go"/"Bắt đầu Đố vui").
+ *  Câu hỏi đầu tiên chưa tồn tại trong DOM cho tới khi bấm -> thiếu bước này thì
+ *  bộ đếm visible = 0 và vòng giải dừng ngay lập tức (attempted=0). */
+async function pressStart(frame, logger) {
+  const direct = frame.locator('.h5p-question-start:visible, .h5p-single-choice-set-start-button:visible').first();
+  if (await direct.count().catch(() => 0)) { await humanClick(frame, direct); logger && logger('  start: bấm nút bắt đầu'); return true; }
+  return pressFirstVisibleText(frame, ['Bắt đầu', "Let's go", 'Start'], logger, '  start: bấm');
+}
+
 /** Đếm phần tử visible trong frame theo selector. */
 async function countVisible(frame, sel) {
   return frame.evaluate((s) => [...document.querySelectorAll(s)].filter(e => e && e.offsetParent !== null).length, sel);
 }
 
-/** Các selector feedback đúng/sai (mọi dạng H5P). */
-const FEEDBACK_SEL = '.h5p-correct, .h5p-wrong, .h5p-true-false-answer.correct, .h5p-true-false-answer.incorrect, .multichoice-tip.h5p-correct, .multichoice-tip.h5p-wrong, .h5p-question-plus-one, .h5p-question-minus-one, .h5p-sc-is-correct, .h5p-sc-is-wrong';
+/** Các selector feedback đúng/sai (mọi dạng H5P).
+ * SingleChoiceSet: `h5p-sc-is-correct/is-wrong` là metadata nội dung có sẵn từ
+ * đầu, KHÔNG phải feedback; feedback thật sau khi chọn là `h5p-sc-reveal-*`. */
+const FEEDBACK_SEL = '.h5p-correct, .h5p-wrong, .h5p-true-false-answer.correct, .h5p-true-false-answer.incorrect, .multichoice-tip.h5p-correct, .multichoice-tip.h5p-wrong, .h5p-question-plus-one, .h5p-question-minus-one, .h5p-sc-reveal-correct, .h5p-sc-reveal-wrong';
 
 /**
  * Chờ tối đa `ms` cho feedback đúng/sai xuất hiện, TRẢ VỀ SỚM ngay khi có.
@@ -413,6 +483,70 @@ async function answerWithRetry({ attempt, check, feedback, retry, maxAttempts = 
   return { solved: false, reason: 'wrong', attempts: n, ...last };
 }
 
+/** Đọc khối câu hỏi ĐANG HIỆN: text + nhãn các đáp án trên DOM. */
+async function readCurrentQuestion(frame) {
+  return frame.evaluate(() => {
+    const vis = (el) => !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    const box = [...document.querySelectorAll('.h5p-question')].filter(vis)[0] || document.body;
+    const answers = [...box.querySelectorAll('.h5p-answer, .h5p-alternative-container, .h5p-draggable')]
+      .filter(vis).map((e) => (e.innerText || e.textContent || '').replace(/\s+/g, ' ').trim());
+    return { text: (box.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 2000), answers };
+  }).catch(() => null);
+}
+
+/**
+ * Chọn câu trong json KHỚP với câu đang hiện trên DOM (-1 nếu không khớp).
+ * QuestionSet có randomQuestions -> lấy subs[step] theo thứ tự json là LỆNH, click
+ * đáp án của câu khác = H5P ghi nhận câu SAI (bug gặp khi debug live 22/10/2026).
+ * Ưu tiên khớp theo lời dẫn câu hỏi (mạnh), phụ theo nhãn đáp án hiện trên DOM.
+ */
+function pickSubIndex(subs, used, cur) {
+  const domText = normalizeText((cur && cur.text) || '');
+  const domAns = ((cur && cur.answers) || []).map(normalizeText).filter(Boolean);
+  let best = -1, bestScore = 0, tie = false;
+  subs.forEach((s, i) => {
+    if (used.has(i)) return;
+    const ex = (s && s.extracted) || {};
+    const q = normalizeText(ex.question || '');
+    let score = 0;
+    if (q.length >= 15 && domText.includes(q)) score += 100;
+    (ex.options || ex.answers || []).forEach((o) => {
+      const t = normalizeText(o);
+      if (t && domAns.includes(t)) score += 1;
+    });
+    if (score > bestScore) { bestScore = score; best = i; tie = false; }
+    else if (score === bestScore && score > 0) tie = true;
+  });
+  // Khớp lời dẫn câu hỏi (>=100) là bằng chứng mạnh -> nhận.
+  if (bestScore >= 100) return best;
+  // Chỉ khớp nhãn đáp án (vd "Đúng/Sai" xuất hiện ở nhiều câu) mà nhập nhằng
+  // giữa nhiều câu -> KHÔNG đoán; trả -1 để solver dừng thay vì trả lời sai.
+  return bestScore > 0 && !tie ? best : -1;
+}
+
+/** Chờ câu hỏi sẵn sàng (có đáp án/ô nhập visible) thay cho sleep cứng sau khi bấm Bắt đầu. */
+async function waitAnswerReady(frame, ms = 1500) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const n = await countVisible(frame, '.h5p-alternative-container, .h5p-answer, input.h5p-text-input, .h5p-draggable');
+    if (n > 0) return true;
+    await sleep(100);
+  }
+  return false;
+}
+
+/** Chờ DOM đổi sang câu kế (text khác trước) thay cho sleep cứng sau "Câu tiếp theo". */
+async function waitQuestionChange(frame, prevText, ms = 1500) {
+  if (!prevText) return false;
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    const cur = await readCurrentQuestion(frame);
+    if (cur && cur.text && cur.text !== prevText) return true;
+    await sleep(100);
+  }
+  return false;
+}
+
 /**
  * Giải 1 QuestionSet: duyệt từng câu, giải ĐÚNG để "Câu tiếp theo" xuất hiện.
  * Trả về thống kê để ước tính điểm.
@@ -426,17 +560,28 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
   const subs = qsItem.sub || [];
   logger(`QuestionSet: ${subs.length} câu trong json`);
 
-  let attempted = 0, correctCount = 0;
+  let attempted = 0, correctCount = 0, unmatched = 0;
+  const used = new Set();
+  await pressStart(frame, logger).catch(() => {});
+  await waitAnswerReady(frame, 1500);
   for (let step = 0; step < maxQ; step++) {
     const hasChoice = await countVisible(frame, '.h5p-alternative-container');
     const hasInput = await countVisible(frame, 'input.h5p-text-input');
     const hasDrag = await countVisible(frame, '.h5p-draggable');
     if (!hasChoice && !hasInput && !hasDrag) { logger(`step ${step}: hết câu hỏi`); break; }
 
-    const sub = subs[step];
+    const curQ = await readCurrentQuestion(frame);
+    const pick = pickSubIndex(subs, used, curQ);
+    if (pick < 0) {
+      logger(`step ${step}: không khớp được câu đang hiện với câu nào trong json -> dừng (không đoán)`);
+      unmatched++;
+      break;
+    }
+    used.add(pick);
+    const sub = subs[pick];
     const item = { library: sub?.library, kind: sub?.extracted?.kind, data: sub?.extracted };
     attempted++;
-    logger(`step ${step}: ${sub?.library || '?'} (choice=${hasChoice} input=${hasInput} drag=${hasDrag})`);
+    logger(`step ${step}: ${sub?.library || '?'} (json#${pick}, choice=${hasChoice} input=${hasInput} drag=${hasDrag})`);
 
     const attemptFn = async () => {
       if (hasChoice > 0) return solveChoice(frame, item, logger);
@@ -460,7 +605,7 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
     if (isCorrect) correctCount++;
     const hasNext = await pressNext(frame, logger);
     logger(`  result=${JSON.stringify({ correct: rr.correct, wrong: rr.wrong, attempts: rr.attempts })} correct=${isCorrect} next=${hasNext}`);
-    if (hasNext) { await sleep(600); }
+    if (hasNext) { await waitQuestionChange(frame, curQ && curQ.text, 1500); }
     else {
       // Sai -> thử "Đáp án" rồi Next (sang câu sau nhưng không tính điểm)
       const showSol = frame.locator('button:has-text("Đáp án")').first();
@@ -480,7 +625,7 @@ async function solveQuestionSet(frame, qsItem, opts = {}) {
     return { ratio: txt ? { got: +txt[1], total: +txt[2] } : null, barWidth: bar ? bar.style.width : null, summary: summary.slice(0, 60) };
   }).catch(() => ({}));
 
-  return { attempted, correctCount, total: subs.length, finalScore };
+  return { attempted, correctCount, total: subs.length, unmatched, finalScore };
 }
 
 /**
@@ -508,4 +653,4 @@ async function solveOne(frame, item, logger) {
   return { solved: false, reason: 'unsupported:' + kind };
 }
 
-module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, pressRetry, pressAllRetries, retryAvailable, answerWithRetry, waitFeedback, FEEDBACK_SEL, solveQuestionSet, countVisible, waitSel, normalizeText };
+module.exports = { solveOne, solveChoice, solveBlanks, solveDragText, solveDrag, solveSummary, pressCheck, pressNext, pressStart, pressRetry, pressAllRetries, retryAvailable, answerWithRetry, waitFeedback, FEEDBACK_SEL, solveQuestionSet, pickSubIndex, countVisible, waitSel, normalizeText, imgKey };

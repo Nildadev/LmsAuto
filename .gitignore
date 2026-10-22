@@ -14,4 +14,6 @@ yarn-error.log*
 *.pem
 .profiles
 UserSECRET.txt
+usersecret.txt
 docs/all-contents-700.json
+docs/census-*.json
