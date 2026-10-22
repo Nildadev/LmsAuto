@@ -4,6 +4,7 @@
 
 **Tự động học trên [lms360.vn](https://lms360.vn) — đăng nhập, làm bài và hoàn thành khóa học thay bạn, hoàn toàn tự động.**
 
+[![Version](https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge)](#)
 [![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![Playwright](https://img.shields.io/badge/Playwright-1.59+-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)

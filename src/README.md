@@ -1,4 +1,4 @@
-# LmsAuto v2 — Core Solver (đã verify chạy thật)
+# LmsAuto v2.1 — Core Solver (đã verify chạy thật)
 
 Đây là **lõi automation mới**, viết lại hoàn toàn từ dữ liệu đã reverse-engineer
 từ `lms360.vn` (xem `docs/H5P-ANSWER-MAP.md`). Khác bản cũ trước đây:

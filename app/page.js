@@ -370,7 +370,7 @@ export default function Home() {
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <span className="material-symbols-outlined text-primary text-[24px] sm:text-[26px] shrink-0">school</span>
             <span className="text-[15px] sm:text-[18px] font-medium text-on-surface truncate">LMS360 Auto Solver</span>
-            <span className="hidden sm:inline text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">v2.0</span>
+            <span className="hidden sm:inline text-[12px] px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container shrink-0">v2.1</span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
@@ -538,7 +538,7 @@ export default function Home() {
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <footer className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-1 text-[12px] text-on-surface-variant">
         <span>© 2026 Nildadev · Apache-2.0</span>
-        <span>LMS360 Auto Solver v2.0</span>
+        <span>LMS360 Auto Solver v2.1</span>
       </footer>
 
     </div>
